@@ -26,5 +26,13 @@
     <Using Include="Microsoft.Extensions.Hosting" />
     <Using Include="Microsoft.Extensions.Logging" />
     <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Serilog" />
+    <Using Include="Serilog.Events" />
+    <Using Include="Serilog.Sinks.File" />
+    <Using Include="Serilog.Sinks.Elasticsearch" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Serilog.ILogger" Alias="ILogger" />
   </ItemGroup>
 </Project> 
