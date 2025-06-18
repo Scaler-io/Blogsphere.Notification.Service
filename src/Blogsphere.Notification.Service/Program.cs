@@ -9,16 +9,24 @@ ILogger logger = null;
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) => {
+        
+        var configuration = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+        .Build();
+
+        services.AddSingleton<IConfiguration>(configuration);
+
         var serviceProvider = services.BuildServiceProvider();
-        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
         logger = Logging.GetLogger(configuration);
         services.AddSingleton(logger);
         
-        services.ConfigureServices()
+        services.ConfigureServices(configuration)
+        .ConfigureOptions(configuration)
         .ConfigureDataSevices(configuration);
 
         services.AddHostedService<EventBusStarterJob>();
+        services.AddHostedService<EmailProcessingJob>();
         
     }).UseSerilog(logger)
     .Build();

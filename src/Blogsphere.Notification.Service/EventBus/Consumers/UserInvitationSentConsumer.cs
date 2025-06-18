@@ -68,8 +68,8 @@ public class UserInvitationSentConsumer(ILogger logger, IOptions<EmailTemplates>
         Uri url = new($"{identityBaseUrl}/account/emailverification?userId={message.UserId}&token={token}");
         List<TemplateFields> fields = new()
         {
-            new("[firstName]", message.FirstName),
-            new("[lastName]", message.LastName),
+            new("[firstname]", message.FirstName),
+            new("[lastname]", message.LastName),
             new("[acceptanceLink]", url.ToString())
         };
 

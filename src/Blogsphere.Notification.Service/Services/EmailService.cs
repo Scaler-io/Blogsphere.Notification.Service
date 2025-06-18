@@ -24,7 +24,7 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
             .Where(x => !x.IsPublished)
             .ToListAsync();
 
-        if(notificationsToProcess == null || notificationsToProcess.Count == 0)
+            if(notificationsToProcess == null || notificationsToProcess.Count == 0)
         {
             _logger.Here().Information("No notifications to process");
             return;
@@ -41,7 +41,7 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
                 await mailClient.SendAsync(mail);
                 notification.IsPublished = true;
                 notification.PublishTime = DateTime.UtcNow;
-                _dbContext.NotificationHistories.Add(notification);
+                _dbContext.NotificationHistories.Update(notification);
                 await _dbContext.SaveChangesAsync();   
             }
             catch(Exception ex)
@@ -53,7 +53,7 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
 
     protected override async Task<MimeMessage> ProcessMessage(NotificationHistory notification)
     {
-        var emailTempateText = await _blobStorageService.GetBlobAsync("templates/UserInivitationSent.html");
+        var emailTempateText = await _blobStorageService.GetBlobAsync($"templates/{notification.TemplateName}.html");
         var emailFields = JsonConvert.DeserializeObject<List<TemplateFields>>(notification.Data);
         var builder = new BodyBuilder();
 

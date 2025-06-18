@@ -13,14 +13,22 @@ public class BlobStorageService(AmazonS3Client s3Client, IOptions<BlobStorageOpt
 
     public async Task<Stream> GetBlobAsync(string path)
     {
-        var request = new GetObjectRequest{
-            BucketName = _blobStorageOption.BucketName,
-            Key = path
-        };
-        using var response = await _s3Client.GetObjectAsync(request);
-        var memoryStream = new MemoryStream();
-        await response.ResponseStream.CopyToAsync(memoryStream);
-        memoryStream.Position = 0;
-        return memoryStream;
+        try
+        {
+            var request = new GetObjectRequest
+            {
+                BucketName = _blobStorageOption.BucketName,
+                Key = path
+            };
+            using var response = await _s3Client.GetObjectAsync(request);
+            var memoryStream = new MemoryStream();
+            await response.ResponseStream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+            return memoryStream;
+        }
+        catch (Exception ex)
+        {
+            throw ex;
+        }
     }
 }

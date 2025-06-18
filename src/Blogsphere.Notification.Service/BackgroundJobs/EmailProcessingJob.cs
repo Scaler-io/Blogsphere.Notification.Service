@@ -15,7 +15,7 @@ public class EmailProcessingJob(IOptions<AppConfigOption> appConfigOption, IServ
     {
         while(!stoppingToken.IsCancellationRequested)
         {
-            System.Console.WriteLine("Next job running {timer}", DateTime.Now.AddSeconds(10));
+            System.Console.WriteLine($"Next job running {DateTime.Now.AddSeconds(10)}");
             using var scope = _serviceProvider.CreateScope();
 
             IEmailService emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
