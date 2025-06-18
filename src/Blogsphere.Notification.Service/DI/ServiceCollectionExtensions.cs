@@ -3,6 +3,8 @@ using Blogsphere.Notification.Service.EventBus.Consumers;
 using Blogsphere.Notification.Service.Services;
 using Contracts.Events;
 using MassTransit;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace Blogsphere.Notification.Service.DI
 {
@@ -30,6 +32,21 @@ namespace Blogsphere.Notification.Service.DI
             });
 
             services.AddScoped<IEmailService, EmailService>();
+
+            // open telemtry
+            services.AddOpenTelemetry()
+                .ConfigureResource(resource => resource.AddService("blogsphere.notification.service"))
+                .WithTracing(tracing =>
+                {
+                    tracing.AddSource("Blogsphere.Notification.Service")
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddSqlClientInstrumentation(options => options.SetDbStatementForText = true)
+                    .AddZipkinExporter(options =>
+                    {
+                        options.Endpoint = new Uri(configuration["Zipkin:Url"]);
+                    });
+                });
 
             return services;
         }
