@@ -46,7 +46,7 @@ stages:
 
   - stage: GithubRelease
     displayName: "Github Release"
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), or(eq(variables['Build.Reason'], 'IndividualCI'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'main'))))
+    condition: and(succeeded(), notIn(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
       - job: GithubRelease
         displayName: "Github Release Job"
@@ -60,7 +60,7 @@ stages:
     displayName: "Docker Build and Push"
     dependsOn:
       - GithubRelease
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), or(eq(variables['Build.Reason'], 'IndividualCI'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'main'))))
+    condition: and(succeeded(), notIn(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     variables:
       RELEASE_TAG: $[ stageDependencies.GithubRelease.GithubRelease.outputs['setReleaseTag.RELEASE_TAG'] ]
     jobs:
