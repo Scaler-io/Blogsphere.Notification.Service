@@ -3,11 +3,6 @@ parameters:
   buildConfiguration: "Release"
 
 steps:
-  # Download build artifacts from previous stage
-  - download: current
-    artifact: build-output
-    displayName: "Download Build Artifacts"
-
   # Security analysis
   - task: PowerShell@2
     displayName: "Security Analysis - Check Vulnerable Packages"
@@ -38,6 +33,10 @@ steps:
               Write-Host "✅ Found project file in: $path"
               Set-Location $path
               Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Restore packages first
+              Write-Host "📦 Restoring NuGet packages..."
+              dotnet restore
               
               # Check for vulnerable packages
               $vulnerablePackages = dotnet list package --vulnerable 2>&1
@@ -86,6 +85,10 @@ steps:
               Write-Host "✅ Found project file in: $path"
               Set-Location $path
               Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Restore packages first
+              Write-Host "📦 Restoring NuGet packages..."
+              dotnet restore
               
               # Check for compiler warnings and errors
               $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
@@ -145,6 +148,10 @@ steps:
               Write-Host "✅ Found project file in: $path"
               Set-Location $path
               Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Restore packages first
+              Write-Host "📦 Restoring NuGet packages..."
+              dotnet restore
               
               # List all packages
               Write-Host "Installed packages:"
