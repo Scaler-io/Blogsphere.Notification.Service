@@ -1,17 +1,71 @@
-# ASP.NET Core
-# Build and test ASP.NET Core projects targeting .NET Core.
-# Add steps that run tests, create a NuGet package, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
-
 trigger:
-- main
+  batch: true
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: "ubuntu-latest"
 
 variables:
-  buildConfiguration: 'Release'
+  - group: Blogsphere.Notification.Service.Group
 
-steps:
-- script: dotnet build --configuration $(buildConfiguration)
-  displayName: 'dotnet build $(buildConfiguration)'
+stages:
+  - stage: Build
+    displayName: "Build Notification Service"
+    jobs:
+      - job: build
+        displayName: "Build Job"
+        steps:
+          - template: ./build/build.yml
+            parameters:
+              projects: $(projects)
+              buildPlatform: $(buildPlatform)
+              buildConfiguration: $(buildConfiguration)
+              dotnetVersion: $(dotnetVersion)
+
+  - stage: CodeAnalysis
+    displayName: "Code Analysis"
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: analysis
+        displayName: "Code Analysis Job"
+        steps:
+          - template: ./analysis/code-analysis.yml
+            parameters:
+              projects: $(projects)
+              buildConfiguration: $(buildConfiguration)
+
+  - stage: GithubRelease
+    displayName: "Github Release"
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), or(eq(variables['Build.Reason'], 'IndividualCI'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'main'))))
+    jobs:
+      - job: GithubRelease
+        displayName: "Github Release Job"
+        steps:
+          - template: ./deploy/github-release.yml
+            parameters:
+              githubConnection: $(githubConnection)
+              repositoryName: $(repositoryName)
+
+  - stage: DockerBuildAndPush
+    displayName: "Docker Build and Push"
+    dependsOn:
+      - GithubRelease
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), or(eq(variables['Build.Reason'], 'IndividualCI'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'main'))))
+    variables:
+      RELEASE_TAG: $[ stageDependencies.GithubRelease.GithubRelease.outputs['setReleaseTag.RELEASE_TAG'] ]
+    jobs:
+      - job: DockerBuildAndPush
+        displayName: "Docker Build and Push Job"
+        steps:
+          - template: ./deploy/docker-build.yml
+            parameters:
+              imageName: $(imageName)
+              tag: $(RELEASE_TAG)
+              containerRegistry: $(containerRegistry)

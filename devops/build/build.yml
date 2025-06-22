@@ -1,0 +1,38 @@
+parameters:
+  - name: projects
+    default: ""
+  - name: buildConfiguration
+    default: ""
+  - name: buildPlatform
+    default: ""
+  - name: dotnetVersion
+    default: ""
+
+steps:
+  - task: UseDotNet@2
+    displayName: "Install dotnet SDK"
+    inputs:
+      packageType: "sdk"
+      version: ${{ parameters.dotnetVersion }}
+
+  - task: DotNetCoreCLI@2
+    displayName: "Restore Nugetr Dependencies"
+    inputs:
+      command: "restore"
+      projects: ${{ parameters.projects }}
+
+  - task: DotNetCoreCLI@2
+    displayName: "Build"
+    inputs:
+      command: "build"
+      projects: ${{ parameters.projects }}
+      arguements: '--configuration ${{ parameters.buildConfiguration }} /p:Platform="${{ parameters.buildPlatform }}"'
+
+  - task: DotNetCoreCLI@2
+    displayName: "Publish Notification Service"
+    inputs:
+      command: "publish"
+      publishWebProjects: false
+      projects: ${{ parameters.projects }}
+      arguments: '--configuration ${{ parameters.buildConfiguration }} /p:Platform="${{ parameters.buildPlatform }}" --output $(Build.ArtifactStagingDirectory)'
+      zipAfterPublish: true

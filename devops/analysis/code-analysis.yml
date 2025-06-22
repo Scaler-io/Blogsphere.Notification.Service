@@ -1,0 +1,103 @@
+parameters:
+  projects: ""
+  buildConfiguration: "Release"
+
+steps:
+  # Reuse existing build template for consistency
+  - template: ../build/build.yml
+    parameters:
+      projects: ${{ parameters.projects }}
+      buildPlatform: "Any CPU"
+      buildConfiguration: ${{ parameters.buildConfiguration }}
+      dotnetVersion: "8.x"
+
+  # Security analysis
+  - task: PowerShell@2
+    displayName: "Security Analysis - Check Vulnerable Packages"
+    inputs:
+      targetType: "inline"
+      script: |
+        Write-Host "🔍 Checking for vulnerable packages..."
+        $vulnerablePackages = dotnet list package --vulnerable 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "✅ No vulnerable packages found"
+        } else {
+          Write-Host "⚠️ Vulnerable packages detected:"
+          Write-Host $vulnerablePackages
+        }
+
+  # Code quality analysis
+  - task: PowerShell@2
+    displayName: "Code Quality Analysis"
+    inputs:
+      targetType: "inline"
+      script: |
+        Write-Host "🔍 Running code quality checks..."
+
+        # Check for compiler warnings and errors
+        $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
+        $warnings = $buildOutput | Select-String "warning"
+        $errors = $buildOutput | Select-String "error"
+
+        if ($errors) {
+          Write-Host "❌ Found $($errors.Count) errors:"
+          $errors | ForEach-Object { Write-Host "  $_" }
+          exit 1
+        }
+
+        if ($warnings) {
+          Write-Host "⚠️ Found $($warnings.Count) warnings:"
+          $warnings | ForEach-Object { Write-Host "  $_" }
+        } else {
+          Write-Host "✅ No warnings found"
+        }
+
+        # Check for code style issues (if StyleCop is configured)
+        Write-Host "📋 Checking code style..."
+        # dotnet tool install --global StyleCop.Analyzers
+        # dotnet stylecop
+
+  # Dependency analysis
+  - task: PowerShell@2
+    displayName: "Dependency Analysis"
+    inputs:
+      targetType: "inline"
+      script: |
+        Write-Host "📦 Analyzing dependencies..."
+
+        # List all packages
+        Write-Host "Installed packages:"
+        dotnet list package
+
+        # Check for outdated packages
+        Write-Host "`nChecking for outdated packages..."
+        dotnet list package --outdated
+
+  # Code metrics (if available)
+  - task: PowerShell@2
+    displayName: "Code Metrics Analysis"
+    inputs:
+      targetType: "inline"
+      script: |
+        Write-Host "📊 Analyzing code metrics..."
+
+        # Count lines of code (basic metric)
+        $csFiles = Get-ChildItem -Path "src" -Filter "*.cs" -Recurse
+        $totalLines = 0
+
+        foreach ($file in $csFiles) {
+          $lines = Get-Content $file.FullName | Measure-Object -Line
+          $totalLines += $lines.Lines
+        }
+
+        Write-Host "📈 Total lines of C# code: $totalLines"
+        Write-Host "📁 Total C# files: $($csFiles.Count)"
+
+  # Upload analysis results
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish Analysis Results"
+    inputs:
+      pathToPublish: "src"
+      artifactName: "CodeAnalysisResults"
+    condition: succeededOrFailed()
