@@ -36,3 +36,10 @@ steps:
       projects: ${{ parameters.projects }}
       arguments: '--configuration ${{ parameters.buildConfiguration }} /p:Platform="${{ parameters.buildPlatform }}" --output $(Build.ArtifactStagingDirectory)'
       zipAfterPublish: true
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish Build Artifacts"
+    inputs:
+      pathToPublish: "$(Build.ArtifactStagingDirectory)"
+      artifactName: "build-output"
+      publishLocation: "Container"
