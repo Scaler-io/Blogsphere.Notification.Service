@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  notificationDb:
+    container_name: notificationDb
+    volumes:
+      - notificationDb_data:/var/opt/mssql
+    environment:
+      - MSSQL_PID=Express
+      - SA_PASSWORD=P@ssw0rd
+      - ACCEPT_EULA=Y
+    ports:
+      - 1434:1433
+    networks:
+      - blogsphere_dev_net
+
+  blogsphere.notification.service:
+    container_name: Blogsphere.Notification.Service
+    depends_on:
+      - notificationDb
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - "Logging__LogOutputTemplate=[{Timestamp:dd-MM-yyyy HH:mm:ss, fff}] {Level} {Properties} [CorrelationId:{CorrelationId}] [Machine: {MachineName}] {CallerType}:{MemberName} {Message}{NewLine}{Exception}{NewLine}"
+      - Logging__Console__Enabled=true
+      - Logging__Console__LogLevel=Debug
+      - Logging__Elastic__Enabled=true
+      - Logging__Elastic__LogLevel=Debug
+      - AppConfigurations__ApplicationIdentifier=Blogsphere.Notification.Service
+      - AppConfigurations__ApplicationEnvironment=Docker
+      - AppConfigurations__NotificationProcessInterval=5
+      - AppConfigurations__IntervalUnit=ss
+      - InfrastructureSettings__identityBaseUrl=http://Blogsphere.IdentityServer
+      - Elasticsearch__Uri=http://elasticsearch:9200
+      - EventBus__Host=rabbitmq
+      - EventBus__Username=guest
+      - EventBus__Password=guest
+      - EventBus__VirtualHost=/
+      - EmailTemplates__UserInvite=UserInvitationSent
+      - EmailSettings__Server=sandbox.smtp.mailtrap.io
+      - EmailSettings__Port=587
+      - EmailSettings__CompanyAddress=support@blogsphere
+      - EmailSettings__UserName=ea03557e41bbb2
+      - EmailSettings__Password=52aabaca4cce62
+      - ConnectionStrings__SqlServer=Server=notificationDb;Database=NotificationDb;User Id=sa;Password=P@ssw0rd;Encrypt=True;TrustServerCertificate=True;
+      - BlobStorage__ServiceUrl=http://minio:9000
+      - BlobStorage__UserName=minioadmin
+      - BlobStorage__Password=minioadmin
+      - BlobStorage__BucketName=blogsphere
+      - Zipkin__Url=http://zipkin:9411/api/v2/spans
+    networks:
+      - blogsphere_dev_net

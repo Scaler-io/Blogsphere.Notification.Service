@@ -1,20 +1,24 @@
-
 using MassTransit;
 
 namespace Blogsphere.Notification.Service.BackgroundJobs
 {
-    public class EventBusStarterJob(IBusControl busControl) : BackgroundService
+    public class EventBusStarterJob : IHostedService
     {
-        private readonly IBusControl _busControl = busControl;
+        private readonly IBusControl _busControl;
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public EventBusStarterJob(IBusControl busControl)
         {
-            await _busControl.StartAsync(stoppingToken);
-            if(stoppingToken.IsCancellationRequested)
-            {
-                await _busControl.StopAsync(stoppingToken);
-            }
-            Console.WriteLine("BackgroundStarterJob running");
+            _busControl = busControl;
+        }
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            await _busControl.StartAsync(cancellationToken);
+        }
+
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            await _busControl.StopAsync(cancellationToken);
         }
     }
 }

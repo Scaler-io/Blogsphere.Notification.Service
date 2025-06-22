@@ -8,7 +8,7 @@ namespace Blogsphere.Notification.Service.DI
 {
     public static class ServiceCollectionDataExtensions
     {
-        public static IServiceCollection ConfigureDataSevices(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection ConfigureDataServices(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddDbContext<NotificationDbContext>(options => 
             {

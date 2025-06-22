@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Blogsphere.Notification.Service</RootNamespace>
     <AssemblyName>Blogsphere.Notification.Service</AssemblyName>
   </PropertyGroup>
