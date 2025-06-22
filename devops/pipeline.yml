@@ -66,6 +66,6 @@ stages:
         steps:
           - template: ./deploy/docker-build.yml
             parameters:
-              image: $(imageName)
+              imageName: $(imageName)
               tag: $(RELEASE_TAG)
               containerRegistry: $(containerRegistry)
