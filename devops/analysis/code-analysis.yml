@@ -3,14 +3,6 @@ parameters:
   buildConfiguration: "Release"
 
 steps:
-  # Reuse existing build template for consistency
-  - template: ../build/build.yml
-    parameters:
-      projects: ${{ parameters.projects }}
-      buildPlatform: "Any CPU"
-      buildConfiguration: ${{ parameters.buildConfiguration }}
-      dotnetVersion: "8.x"
-
   # Security analysis
   - task: PowerShell@2
     displayName: "Security Analysis - Check Vulnerable Packages"
@@ -18,13 +10,54 @@ steps:
       targetType: "inline"
       script: |
         Write-Host "🔍 Checking for vulnerable packages..."
-        $vulnerablePackages = dotnet list package --vulnerable 2>&1
 
-        if ($LASTEXITCODE -eq 0) {
-          Write-Host "✅ No vulnerable packages found"
-        } else {
-          Write-Host "⚠️ Vulnerable packages detected:"
-          Write-Host $vulnerablePackages
+        # Check current directory structure
+        Write-Host "📁 Current directory: $(Get-Location)"
+        Write-Host "📁 Available directories:"
+        Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+
+        # Look for the project file in various possible locations
+        $possiblePaths = @(
+          "src/Blogsphere.Notification.Service",
+          "Blogsphere.Notification.Service",
+          ".",
+          "build-output"
+        )
+
+        $projectFound = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "📁 Checking path: $path"
+            $csprojFiles = Get-ChildItem -Path $path -Filter "*.csproj" -Recurse
+            if ($csprojFiles) {
+              Write-Host "✅ Found project file in: $path"
+              Set-Location $path
+              Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Restore packages first
+              Write-Host "📦 Restoring NuGet packages..."
+              dotnet restore
+              
+              # Check for vulnerable packages
+              $vulnerablePackages = dotnet list package --vulnerable 2>&1
+              
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ No vulnerable packages found"
+              } else {
+                Write-Host "⚠️ Vulnerable packages detected:"
+                Write-Host $vulnerablePackages
+              }
+              
+              $projectFound = $true
+              break
+            }
+          }
+        }
+
+        if (-not $projectFound) {
+          Write-Host "❌ No project file found in any expected location"
+          Write-Host "📁 All files in current directory:"
+          Get-ChildItem -Recurse | ForEach-Object { Write-Host "  - $($_.FullName)" }
         }
 
   # Code quality analysis
@@ -35,28 +68,81 @@ steps:
       script: |
         Write-Host "🔍 Running code quality checks..."
 
-        # Check for compiler warnings and errors
-        $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
-        $warnings = $buildOutput | Select-String "warning"
-        $errors = $buildOutput | Select-String "error"
+        # Look for the project file in various possible locations
+        $possiblePaths = @(
+          "src/Blogsphere.Notification.Service",
+          "Blogsphere.Notification.Service",
+          ".",
+          "build-output"
+        )
 
-        if ($errors) {
-          Write-Host "❌ Found $($errors.Count) errors:"
-          $errors | ForEach-Object { Write-Host "  $_" }
-          exit 1
+        $projectFound = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "📁 Checking path: $path"
+            $csprojFiles = Get-ChildItem -Path $path -Filter "*.csproj" -Recurse
+            if ($csprojFiles) {
+              Write-Host "✅ Found project file in: $path"
+              Set-Location $path
+              Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Restore packages first
+              Write-Host "📦 Restoring NuGet packages..."
+              dotnet restore
+              
+              # Check for compiler warnings and errors
+              $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
+              $warnings = $buildOutput | Select-String "warning"
+              $errors = $buildOutput | Select-String "error"
+              
+              # Check if build was successful (look for "0 Error(s)" at the end)
+              $buildSuccess = $buildOutput | Select-String "0 Error\(s\)"
+              
+              if ($buildSuccess) {
+                Write-Host "✅ Build completed successfully"
+                
+                if ($warnings) {
+                  Write-Host "⚠️ Found $($warnings.Count) warnings:"
+                  $warnings | ForEach-Object { Write-Host "  $_" }
+                } else {
+                  Write-Host "✅ No warnings found"
+                }
+              } else {
+                Write-Host "❌ Build failed"
+                if ($errors) {
+                  Write-Host "❌ Found $($errors.Count) errors:"
+                  $errors | ForEach-Object { Write-Host "  $_" }
+                }
+                exit 1
+              }
+              
+              # Check for code style issues using .NET built-in analyzers
+              Write-Host "📋 Checking code style..."
+              
+              # Run code analysis with built-in analyzers
+              $styleOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal --no-restore 2>&1
+              $styleWarnings = $styleOutput | Select-String "warning.*style|warning.*IDE|warning.*CS"
+              
+              if ($styleWarnings) {
+                Write-Host "⚠️ Found $($styleWarnings.Count) code style warnings:"
+                $styleWarnings | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "✅ No code style issues found"
+              }
+              
+              # Run additional code quality checks
+              Write-Host "🔍 Running additional code quality checks..."
+              dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal --no-restore --property:RunAnalyzersDuringBuild=true
+              
+              $projectFound = $true
+              break
+            }
+          }
         }
 
-        if ($warnings) {
-          Write-Host "⚠️ Found $($warnings.Count) warnings:"
-          $warnings | ForEach-Object { Write-Host "  $_" }
-        } else {
-          Write-Host "✅ No warnings found"
+        if (-not $projectFound) {
+          Write-Host "❌ No project file found for code quality analysis"
         }
-
-        # Check for code style issues (if StyleCop is configured)
-        Write-Host "📋 Checking code style..."
-        # dotnet tool install --global StyleCop.Analyzers
-        # dotnet stylecop
 
   # Dependency analysis
   - task: PowerShell@2
@@ -66,13 +152,45 @@ steps:
       script: |
         Write-Host "📦 Analyzing dependencies..."
 
-        # List all packages
-        Write-Host "Installed packages:"
-        dotnet list package
+        # Look for the project file in various possible locations
+        $possiblePaths = @(
+          "src/Blogsphere.Notification.Service",
+          "Blogsphere.Notification.Service",
+          ".",
+          "build-output"
+        )
 
-        # Check for outdated packages
-        Write-Host "`nChecking for outdated packages..."
-        dotnet list package --outdated
+        $projectFound = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "📁 Checking path: $path"
+            $csprojFiles = Get-ChildItem -Path $path -Filter "*.csproj" -Recurse
+            if ($csprojFiles) {
+              Write-Host "✅ Found project file in: $path"
+              Set-Location $path
+              Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Restore packages first
+              Write-Host "📦 Restoring NuGet packages..."
+              dotnet restore
+              
+              # List all packages
+              Write-Host "Installed packages:"
+              dotnet list package
+              
+              # Check for outdated packages
+              Write-Host "`nChecking for outdated packages..."
+              dotnet list package --outdated
+              
+              $projectFound = $true
+              break
+            }
+          }
+        }
+
+        if (-not $projectFound) {
+          Write-Host "❌ No project file found for dependency analysis"
+        }
 
   # Code metrics (if available)
   - task: PowerShell@2
@@ -95,9 +213,56 @@ steps:
         Write-Host "📁 Total C# files: $($csFiles.Count)"
 
   # Upload analysis results
-  - task: PublishBuildArtifacts@1
-    displayName: "Publish Analysis Results"
+  - task: PowerShell@2
+    displayName: "Generate Analysis Report"
     inputs:
-      pathToPublish: "src"
-      artifactName: "CodeAnalysisResults"
+      targetType: "inline"
+      script: |
+        Write-Host "📊 Generating analysis report..."
+        
+        # Create CSV report
+        $reportPath = "$(Build.ArtifactStagingDirectory)/code-analysis-report.csv"
+        $reportData = @()
+        
+        # Add dependency analysis data
+        $reportData += [PSCustomObject]@{
+          Category = "Dependencies"
+          Metric = "Total Packages"
+          Value = "See console output for details"
+          Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        }
+        
+        # Add code metrics data
+        $csFiles = Get-ChildItem -Path "src" -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue
+        $totalLines = 0
+        if ($csFiles) {
+          foreach ($file in $csFiles) {
+            $lines = Get-Content $file.FullName | Measure-Object -Line
+            $totalLines += $lines.Lines
+          }
+        }
+        
+        $reportData += [PSCustomObject]@{
+          Category = "Code Metrics"
+          Metric = "Total Lines of Code"
+          Value = $totalLines
+          Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        }
+        
+        $reportData += [PSCustomObject]@{
+          Category = "Code Metrics"
+          Metric = "Total C# Files"
+          Value = $csFiles.Count
+          Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        }
+        
+        # Export to CSV
+        $reportData | Export-Csv -Path $reportPath -NoTypeInformation
+        Write-Host "✅ Analysis report generated: $reportPath"
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish Analysis Report"
+    inputs:
+      pathToPublish: "$(Build.ArtifactStagingDirectory)/code-analysis-report.csv"
+      artifactName: "CodeAnalysisReport"
     condition: succeededOrFailed()
