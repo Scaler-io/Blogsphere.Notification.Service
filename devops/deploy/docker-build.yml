@@ -18,7 +18,7 @@ steps:
     displayName: "Build Docker Image"
     inputs:
       command: "build"
-      Dockerfile: "$(Build.SourcesDirectory)/src/Blogsphere.User.Api/Dockerfile"
+      Dockerfile: "$(Build.SourcesDirectory)/src/Blogsphere.Notification.Service/Dockerfile"
       buildContext: "$(Build.SourcesDirectory)/src/."
       repository: ${{ parameters.imageName }}
       tags: "${{ parameters.tag }}"
