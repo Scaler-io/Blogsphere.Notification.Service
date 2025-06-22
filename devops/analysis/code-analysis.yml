@@ -95,17 +95,25 @@ steps:
               $warnings = $buildOutput | Select-String "warning"
               $errors = $buildOutput | Select-String "error"
               
-              if ($errors) {
-                Write-Host "❌ Found $($errors.Count) errors:"
-                $errors | ForEach-Object { Write-Host "  $_" }
-                exit 1
-              }
+              # Check if build was successful (look for "0 Error(s)" at the end)
+              $buildSuccess = $buildOutput | Select-String "0 Error\(s\)"
               
-              if ($warnings) {
-                Write-Host "⚠️ Found $($warnings.Count) warnings:"
-                $warnings | ForEach-Object { Write-Host "  $_" }
+              if ($buildSuccess) {
+                Write-Host "✅ Build completed successfully"
+                
+                if ($warnings) {
+                  Write-Host "⚠️ Found $($warnings.Count) warnings:"
+                  $warnings | ForEach-Object { Write-Host "  $_" }
+                } else {
+                  Write-Host "✅ No warnings found"
+                }
               } else {
-                Write-Host "✅ No warnings found"
+                Write-Host "❌ Build failed"
+                if ($errors) {
+                  Write-Host "❌ Found $($errors.Count) errors:"
+                  $errors | ForEach-Object { Write-Host "  $_" }
+                }
+                exit 1
               }
               
               # Check for code style issues (if StyleCop is configured)
