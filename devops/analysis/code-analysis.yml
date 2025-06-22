@@ -3,6 +3,16 @@ parameters:
   buildConfiguration: "Release"
 
 steps:
+  - task: DotNetCoreCLI@2
+    displayName: "Restore Nuget Packages"
+    inputs:
+      command: "restore"
+      projects: ${{ parameters.projects }}
+
+  - task: DotNetCoreCLI@2
+    displayName: "Build"
+    inputs:
+      command: "build"
   # Security analysis
   - task: PowerShell@2
     displayName: "Security Analysis - Check Vulnerable Packages"
