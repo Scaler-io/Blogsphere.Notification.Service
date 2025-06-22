@@ -1,17 +1,39 @@
-# ASP.NET Core
-# Build and test ASP.NET Core projects targeting .NET Core.
-# Add steps that run tests, create a NuGet package, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
-
 trigger:
-- main
+  batch: true
+  branches:
+    include:
+      - main
+      - feature/**
+      - hotfix/**
+
+pr:
+  branches:
+    include:
+      - main
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: "ubuntu-latest"
 
 variables:
-  buildConfiguration: 'Release'
+  projects: "**/Blogsphere.Notification.Service.csproj"
+  buildPlatform: "Any CPU"
+  buildConfiguration: "Release"
+  dotnetVersion: "8.x"
+  githubConnection: "github.com_sharthak1095"
+  repositoryName: "Scaler-io/Blogsphere.Notification.Service"
+  imageName: "sharthak1995/blogsphere.notification.svc"
+  containerRegistry: "docker-hub-sharthak1995-connection"
 
-steps:
-- script: dotnet build --configuration $(buildConfiguration)
-  displayName: 'dotnet build $(buildConfiguration)'
+stages:
+  - stage: Build
+    displayName: "Build Notification Service"
+    jobs:
+      - job: build
+        displayName: "Build Job"
+        steps:
+          - template: build/build.yml
+            parameters:
+              projects: $(projects)
+              buildPlatform: $(buildPlatform)
+              buildConfiguration: $(buildConfiguration)
+              dotnetVersion: $(dotnetVersion)
