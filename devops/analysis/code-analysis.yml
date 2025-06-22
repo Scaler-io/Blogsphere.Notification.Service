@@ -200,9 +200,56 @@ steps:
         Write-Host "📁 Total C# files: $($csFiles.Count)"
 
   # Upload analysis results
-  - task: PublishBuildArtifacts@1
-    displayName: "Publish Analysis Results"
+  - task: PowerShell@2
+    displayName: "Generate Analysis Report"
     inputs:
-      pathToPublish: "src"
-      artifactName: "CodeAnalysisResults"
+      targetType: "inline"
+      script: |
+        Write-Host "📊 Generating analysis report..."
+        
+        # Create CSV report
+        $reportPath = "$(Build.ArtifactStagingDirectory)/code-analysis-report.csv"
+        $reportData = @()
+        
+        # Add dependency analysis data
+        $reportData += [PSCustomObject]@{
+          Category = "Dependencies"
+          Metric = "Total Packages"
+          Value = "See console output for details"
+          Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        }
+        
+        # Add code metrics data
+        $csFiles = Get-ChildItem -Path "src" -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue
+        $totalLines = 0
+        if ($csFiles) {
+          foreach ($file in $csFiles) {
+            $lines = Get-Content $file.FullName | Measure-Object -Line
+            $totalLines += $lines.Lines
+          }
+        }
+        
+        $reportData += [PSCustomObject]@{
+          Category = "Code Metrics"
+          Metric = "Total Lines of Code"
+          Value = $totalLines
+          Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        }
+        
+        $reportData += [PSCustomObject]@{
+          Category = "Code Metrics"
+          Metric = "Total C# Files"
+          Value = $csFiles.Count
+          Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        }
+        
+        # Export to CSV
+        $reportData | Export-Csv -Path $reportPath -NoTypeInformation
+        Write-Host "✅ Analysis report generated: $reportPath"
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish Analysis Report"
+    inputs:
+      pathToPublish: "$(Build.ArtifactStagingDirectory)/code-analysis-report.csv"
+      artifactName: "CodeAnalysisReport"
     condition: succeededOrFailed()
