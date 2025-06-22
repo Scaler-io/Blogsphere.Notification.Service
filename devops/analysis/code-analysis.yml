@@ -3,14 +3,6 @@ parameters:
   buildConfiguration: "Release"
 
 steps:
-  # Reuse existing build template for consistency
-  - template: ../build/build.yml
-    parameters:
-      projects: ${{ parameters.projects }}
-      buildPlatform: "Any CPU"
-      buildConfiguration: ${{ parameters.buildConfiguration }}
-      dotnetVersion: "8.x"
-
   # Security analysis
   - task: PowerShell@2
     displayName: "Security Analysis - Check Vulnerable Packages"
@@ -18,13 +10,26 @@ steps:
       targetType: "inline"
       script: |
         Write-Host "🔍 Checking for vulnerable packages..."
-        $vulnerablePackages = dotnet list package --vulnerable 2>&1
 
-        if ($LASTEXITCODE -eq 0) {
-          Write-Host "✅ No vulnerable packages found"
+        # Navigate to the project directory
+        $projectPath = "src/Blogsphere.Notification.Service"
+        if (Test-Path $projectPath) {
+          Set-Location $projectPath
+          Write-Host "📁 Working directory: $(Get-Location)"
+          
+          # Check for vulnerable packages
+          $vulnerablePackages = dotnet list package --vulnerable 2>&1
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ No vulnerable packages found"
+          } else {
+            Write-Host "⚠️ Vulnerable packages detected:"
+            Write-Host $vulnerablePackages
+          }
         } else {
-          Write-Host "⚠️ Vulnerable packages detected:"
-          Write-Host $vulnerablePackages
+          Write-Host "❌ Project directory not found: $projectPath"
+          Write-Host "Available directories:"
+          Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
         }
 
   # Code quality analysis
@@ -35,28 +40,39 @@ steps:
       script: |
         Write-Host "🔍 Running code quality checks..."
 
-        # Check for compiler warnings and errors
-        $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
-        $warnings = $buildOutput | Select-String "warning"
-        $errors = $buildOutput | Select-String "error"
-
-        if ($errors) {
-          Write-Host "❌ Found $($errors.Count) errors:"
-          $errors | ForEach-Object { Write-Host "  $_" }
-          exit 1
-        }
-
-        if ($warnings) {
-          Write-Host "⚠️ Found $($warnings.Count) warnings:"
-          $warnings | ForEach-Object { Write-Host "  $_" }
+        # Navigate to the project directory
+        $projectPath = "src/Blogsphere.Notification.Service"
+        if (Test-Path $projectPath) {
+          Set-Location $projectPath
+          Write-Host "📁 Working directory: $(Get-Location)"
+          
+          # Check for compiler warnings and errors
+          $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
+          $warnings = $buildOutput | Select-String "warning"
+          $errors = $buildOutput | Select-String "error"
+          
+          if ($errors) {
+            Write-Host "❌ Found $($errors.Count) errors:"
+            $errors | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
+          
+          if ($warnings) {
+            Write-Host "⚠️ Found $($warnings.Count) warnings:"
+            $warnings | ForEach-Object { Write-Host "  $_" }
+          } else {
+            Write-Host "✅ No warnings found"
+          }
+          
+          # Check for code style issues (if StyleCop is configured)
+          Write-Host "📋 Checking code style..."
+          # dotnet tool install --global StyleCop.Analyzers
+          # dotnet stylecop
         } else {
-          Write-Host "✅ No warnings found"
+          Write-Host "❌ Project directory not found: $projectPath"
+          Write-Host "Available directories:"
+          Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
         }
-
-        # Check for code style issues (if StyleCop is configured)
-        Write-Host "📋 Checking code style..."
-        # dotnet tool install --global StyleCop.Analyzers
-        # dotnet stylecop
 
   # Dependency analysis
   - task: PowerShell@2
@@ -66,13 +82,24 @@ steps:
       script: |
         Write-Host "📦 Analyzing dependencies..."
 
-        # List all packages
-        Write-Host "Installed packages:"
-        dotnet list package
-
-        # Check for outdated packages
-        Write-Host "`nChecking for outdated packages..."
-        dotnet list package --outdated
+        # Navigate to the project directory
+        $projectPath = "src/Blogsphere.Notification.Service"
+        if (Test-Path $projectPath) {
+          Set-Location $projectPath
+          Write-Host "📁 Working directory: $(Get-Location)"
+          
+          # List all packages
+          Write-Host "Installed packages:"
+          dotnet list package
+          
+          # Check for outdated packages
+          Write-Host "`nChecking for outdated packages..."
+          dotnet list package --outdated
+        } else {
+          Write-Host "❌ Project directory not found: $projectPath"
+          Write-Host "Available directories:"
+          Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+        }
 
   # Code metrics (if available)
   - task: PowerShell@2
