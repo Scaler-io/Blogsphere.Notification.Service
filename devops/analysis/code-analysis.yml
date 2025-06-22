@@ -16,25 +16,49 @@ steps:
       script: |
         Write-Host "🔍 Checking for vulnerable packages..."
 
-        # Navigate to the project directory
-        $projectPath = "src/Blogsphere.Notification.Service"
-        if (Test-Path $projectPath) {
-          Set-Location $projectPath
-          Write-Host "📁 Working directory: $(Get-Location)"
-          
-          # Check for vulnerable packages
-          $vulnerablePackages = dotnet list package --vulnerable 2>&1
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ No vulnerable packages found"
-          } else {
-            Write-Host "⚠️ Vulnerable packages detected:"
-            Write-Host $vulnerablePackages
+        # Check current directory structure
+        Write-Host "📁 Current directory: $(Get-Location)"
+        Write-Host "📁 Available directories:"
+        Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+
+        # Look for the project file in various possible locations
+        $possiblePaths = @(
+          "src/Blogsphere.Notification.Service",
+          "Blogsphere.Notification.Service",
+          ".",
+          "build-output"
+        )
+
+        $projectFound = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "📁 Checking path: $path"
+            $csprojFiles = Get-ChildItem -Path $path -Filter "*.csproj" -Recurse
+            if ($csprojFiles) {
+              Write-Host "✅ Found project file in: $path"
+              Set-Location $path
+              Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Check for vulnerable packages
+              $vulnerablePackages = dotnet list package --vulnerable 2>&1
+              
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ No vulnerable packages found"
+              } else {
+                Write-Host "⚠️ Vulnerable packages detected:"
+                Write-Host $vulnerablePackages
+              }
+              
+              $projectFound = $true
+              break
+            }
           }
-        } else {
-          Write-Host "❌ Project directory not found: $projectPath"
-          Write-Host "Available directories:"
-          Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+        }
+
+        if (-not $projectFound) {
+          Write-Host "❌ No project file found in any expected location"
+          Write-Host "📁 All files in current directory:"
+          Get-ChildItem -Recurse | ForEach-Object { Write-Host "  - $($_.FullName)" }
         }
 
   # Code quality analysis
@@ -45,38 +69,55 @@ steps:
       script: |
         Write-Host "🔍 Running code quality checks..."
 
-        # Navigate to the project directory
-        $projectPath = "src/Blogsphere.Notification.Service"
-        if (Test-Path $projectPath) {
-          Set-Location $projectPath
-          Write-Host "📁 Working directory: $(Get-Location)"
-          
-          # Check for compiler warnings and errors
-          $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
-          $warnings = $buildOutput | Select-String "warning"
-          $errors = $buildOutput | Select-String "error"
-          
-          if ($errors) {
-            Write-Host "❌ Found $($errors.Count) errors:"
-            $errors | ForEach-Object { Write-Host "  $_" }
-            exit 1
+        # Look for the project file in various possible locations
+        $possiblePaths = @(
+          "src/Blogsphere.Notification.Service",
+          "Blogsphere.Notification.Service",
+          ".",
+          "build-output"
+        )
+
+        $projectFound = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "📁 Checking path: $path"
+            $csprojFiles = Get-ChildItem -Path $path -Filter "*.csproj" -Recurse
+            if ($csprojFiles) {
+              Write-Host "✅ Found project file in: $path"
+              Set-Location $path
+              Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # Check for compiler warnings and errors
+              $buildOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal 2>&1
+              $warnings = $buildOutput | Select-String "warning"
+              $errors = $buildOutput | Select-String "error"
+              
+              if ($errors) {
+                Write-Host "❌ Found $($errors.Count) errors:"
+                $errors | ForEach-Object { Write-Host "  $_" }
+                exit 1
+              }
+              
+              if ($warnings) {
+                Write-Host "⚠️ Found $($warnings.Count) warnings:"
+                $warnings | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "✅ No warnings found"
+              }
+              
+              # Check for code style issues (if StyleCop is configured)
+              Write-Host "📋 Checking code style..."
+              # dotnet tool install --global StyleCop.Analyzers
+              # dotnet stylecop
+              
+              $projectFound = $true
+              break
+            }
           }
-          
-          if ($warnings) {
-            Write-Host "⚠️ Found $($warnings.Count) warnings:"
-            $warnings | ForEach-Object { Write-Host "  $_" }
-          } else {
-            Write-Host "✅ No warnings found"
-          }
-          
-          # Check for code style issues (if StyleCop is configured)
-          Write-Host "📋 Checking code style..."
-          # dotnet tool install --global StyleCop.Analyzers
-          # dotnet stylecop
-        } else {
-          Write-Host "❌ Project directory not found: $projectPath"
-          Write-Host "Available directories:"
-          Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+        }
+
+        if (-not $projectFound) {
+          Write-Host "❌ No project file found for code quality analysis"
         }
 
   # Dependency analysis
@@ -87,23 +128,40 @@ steps:
       script: |
         Write-Host "📦 Analyzing dependencies..."
 
-        # Navigate to the project directory
-        $projectPath = "src/Blogsphere.Notification.Service"
-        if (Test-Path $projectPath) {
-          Set-Location $projectPath
-          Write-Host "📁 Working directory: $(Get-Location)"
-          
-          # List all packages
-          Write-Host "Installed packages:"
-          dotnet list package
-          
-          # Check for outdated packages
-          Write-Host "`nChecking for outdated packages..."
-          dotnet list package --outdated
-        } else {
-          Write-Host "❌ Project directory not found: $projectPath"
-          Write-Host "Available directories:"
-          Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+        # Look for the project file in various possible locations
+        $possiblePaths = @(
+          "src/Blogsphere.Notification.Service",
+          "Blogsphere.Notification.Service",
+          ".",
+          "build-output"
+        )
+
+        $projectFound = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "📁 Checking path: $path"
+            $csprojFiles = Get-ChildItem -Path $path -Filter "*.csproj" -Recurse
+            if ($csprojFiles) {
+              Write-Host "✅ Found project file in: $path"
+              Set-Location $path
+              Write-Host "📁 Working directory: $(Get-Location)"
+              
+              # List all packages
+              Write-Host "Installed packages:"
+              dotnet list package
+              
+              # Check for outdated packages
+              Write-Host "`nChecking for outdated packages..."
+              dotnet list package --outdated
+              
+              $projectFound = $true
+              break
+            }
+          }
+        }
+
+        if (-not $projectFound) {
+          Write-Host "❌ No project file found for dependency analysis"
         }
 
   # Code metrics (if available)
