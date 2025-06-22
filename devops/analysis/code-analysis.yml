@@ -116,10 +116,23 @@ steps:
                 exit 1
               }
               
-              # Check for code style issues (if StyleCop is configured)
+              # Check for code style issues using .NET built-in analyzers
               Write-Host "📋 Checking code style..."
-              # dotnet tool install --global StyleCop.Analyzers
-              # dotnet stylecop
+              
+              # Run code analysis with built-in analyzers
+              $styleOutput = dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal --no-restore 2>&1
+              $styleWarnings = $styleOutput | Select-String "warning.*style|warning.*IDE|warning.*CS"
+              
+              if ($styleWarnings) {
+                Write-Host "⚠️ Found $($styleWarnings.Count) code style warnings:"
+                $styleWarnings | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "✅ No code style issues found"
+              }
+              
+              # Run additional code quality checks
+              Write-Host "🔍 Running additional code quality checks..."
+              dotnet build --configuration ${{ parameters.buildConfiguration }} --verbosity normal --no-restore --property:RunAnalyzersDuringBuild=true
               
               $projectFound = $true
               break
