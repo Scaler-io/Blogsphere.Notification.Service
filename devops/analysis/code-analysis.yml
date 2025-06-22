@@ -3,16 +3,11 @@ parameters:
   buildConfiguration: "Release"
 
 steps:
-  - task: DotNetCoreCLI@2
-    displayName: "Restore Nuget Packages"
-    inputs:
-      command: "restore"
-      projects: ${{ parameters.projects }}
+  # Download build artifacts from previous stage
+  - download: current
+    artifact: build-output
+    displayName: "Download Build Artifacts"
 
-  - task: DotNetCoreCLI@2
-    displayName: "Build"
-    inputs:
-      command: "build"
   # Security analysis
   - task: PowerShell@2
     displayName: "Security Analysis - Check Vulnerable Packages"
