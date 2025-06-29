@@ -34,7 +34,7 @@ public class AuthCodeSentConsumer(ILogger logger, NotificationDbContext dbContex
             
             NotificationHistory notification = new()
             {
-                Subject = EmailSubjects.UserInvitation,
+                Subject = EmailSubjects.AuthCodeSent,
                 Data = GetEmailData(context.Message),
                 CorrelationId = context.Message.CorrelationId,
                 IsPublished = false,

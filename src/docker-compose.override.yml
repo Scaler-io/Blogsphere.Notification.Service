@@ -36,11 +36,13 @@ services:
       - EventBus__Password=guest
       - EventBus__VirtualHost=/
       - EmailTemplates__UserInvite=UserInvitationSent
+      - EmailTemplates__AuthCodeSent=AuthCodeSent
+      - EmailTemplates__PasswordResetInstructionSent=PasswordResetInstructionSent 
       - EmailSettings__Server=sandbox.smtp.mailtrap.io
       - EmailSettings__Port=587
       - EmailSettings__CompanyAddress=support@blogsphere
-      - EmailSettings__UserName=ea03557e41bbb2
-      - EmailSettings__Password=52aabaca4cce62
+      - EmailSettings__UserName=3d48b2bd457961
+      - EmailSettings__Password=3a6875253bc8f6
       - ConnectionStrings__SqlServer=Server=notificationDb;Database=NotificationDb;User Id=sa;Password=P@ssw0rd;Encrypt=True;TrustServerCertificate=True;
       - BlobStorage__ServiceUrl=http://minio:9000
       - BlobStorage__UserName=minioadmin
