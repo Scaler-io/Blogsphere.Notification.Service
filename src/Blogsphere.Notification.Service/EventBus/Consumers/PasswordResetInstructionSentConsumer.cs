@@ -70,8 +70,8 @@ public class PasswordResetInstructionSentConsumer(ILogger logger, NotificationDb
 
         List<TemplateFields> fields =
         [
-            new("[email]", message.Email),
-            new("[resetlink]", url.ToString()),
+            new("[[email]]", message.Email),
+            new("[[resetlink]]", url.ToString()),
         ];
 
         return JsonConvert.SerializeObject(fields);

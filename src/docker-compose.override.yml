@@ -29,7 +29,7 @@ services:
       - AppConfigurations__ApplicationEnvironment=Docker
       - AppConfigurations__NotificationProcessInterval=5
       - AppConfigurations__IntervalUnit=ss
-      - InfrastructureSettings__identityBaseUrl=http://Blogsphere.IdentityServer
+      - InfrastructureSettings__identityBaseUrl=http://localhost:5000
       - Elasticsearch__Uri=http://elasticsearch:9200
       - EventBus__Host=rabbitmq
       - EventBus__Username=guest
@@ -49,5 +49,7 @@ services:
       - BlobStorage__Password=minioadmin
       - BlobStorage__BucketName=blogsphere
       - Zipkin__Url=http://zipkin:9411/api/v2/spans
+      - Jaeger__Host=jaeger
+      - Jaeger__Port=6831
     networks:
       - blogsphere_dev_net

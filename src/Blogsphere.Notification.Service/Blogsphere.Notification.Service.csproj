@@ -38,6 +38,7 @@
 	<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.8.1" />
 	<PackageReference Include="OpenTelemetry.Exporter.Zipkin" Version="1.7.0" />
 	<PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.0.0-rc9.14" />
+  <PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.6.0-rc.1" />
   </ItemGroup>
 
   <ItemGroup>

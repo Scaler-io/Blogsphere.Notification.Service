@@ -42,9 +42,10 @@ namespace Blogsphere.Notification.Service.DI
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddSqlClientInstrumentation(options => options.SetDbStatementForText = true)
-                    .AddZipkinExporter(options =>
+                    .AddJaegerExporter(options =>
                     {
-                        options.Endpoint = new Uri(configuration["Zipkin:Url"]);
+                        options.AgentHost = configuration["Jaeger:Host"];
+                        options.AgentPort = int.Parse(configuration["Jaeger:Port"]);
                     });
                 });
 
