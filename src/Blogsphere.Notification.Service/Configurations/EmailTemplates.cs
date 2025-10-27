@@ -6,4 +6,6 @@ public sealed class EmailTemplates
     public string UserInvite { get; set; }
     public string AuthCodeSent { get; set; }
     public string PasswordResetInstructionSent { get; set; }
+    public string ManagementUserWelcomeEmailSent { get; set; }
+    public string ManagementUserPasswordEmailSent { get; set; }
 }

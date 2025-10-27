@@ -1,48 +1,48 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.Data;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
-using Blogsphere.Notification.Service.Services;
 using Contracts.Events;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Blogsphere.Notification.Service.EventBus.Consumers;
 
-public class UserInvitationSentConsumer(ILogger logger, IOptions<EmailTemplates> emailTemplates, NotificationDbContext dbContext, IConfiguration configuration) : IConsumer<UserInvitationSent>
+public class ManagementUserPasswordEmailSentConsumer(ILogger logger, IOptions<EmailTemplates> emailTemplates, NotificationDbContext notificationDbContext) : IConsumer<ManagementUserPasswordEmailSent>
 {
     private readonly ILogger _logger = logger;
     private readonly EmailTemplates _emailTemplates = emailTemplates.Value;
-    private readonly NotificationDbContext _dbContext = dbContext;
-    private readonly IConfiguration _configuration = configuration;
+    private readonly NotificationDbContext _notificationDbContext = notificationDbContext;
 
-    public async Task Consume(ConsumeContext<UserInvitationSent> context)
+    public async Task Consume(ConsumeContext<ManagementUserPasswordEmailSent> context)
     {
         _logger.Here().MethodEntered();
         _logger.Here()
             .ForContext("MessageId", context.MessageId)
             .WithCorrelationId(context.Message.CorrelationId)
-            .Information("Message processing started for event {eventName}", nameof(UserInvitationSent));
+            .Information("Message processing started for event {eventName}", nameof(ManagementUserPasswordEmailSent));
 
         try
         {
-            var identityBaseUrl = _configuration["InfrastructureSettings:identityBaseUrl"];
             NotificationHistory notification = new()
             {
-                Subject = EmailSubjects.UserInvitation,
-                Data = GetEmailData(context.Message, identityBaseUrl),
+                Subject = EmailSubjects.ManagementUserPasswordEmailSent,
+                Data = GetEmailData(context.Message),
                 CorrelationId = context.Message.CorrelationId,
                 IsPublished = false,
-                TemplateName = _emailTemplates.UserInvite,
+                TemplateName = _emailTemplates.ManagementUserPasswordEmailSent,
                 RecipientEmail = context.Message.Email
             };
-
-            _dbContext.NotificationHistories.Add(notification);
-            await _dbContext.SaveChangesAsync();
+            _notificationDbContext.NotificationHistories.Add(notification);
+            await _notificationDbContext.SaveChangesAsync();
 
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)
@@ -52,25 +52,22 @@ public class UserInvitationSentConsumer(ILogger logger, IOptions<EmailTemplates>
         {
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)
-                .Error(ex.Message, "Error processing message for event {eventName}", nameof(UserInvitationSent));
+                .Error(ex.Message, "Error processing message for event {eventName}", nameof(ManagementUserPasswordEmailSent));
             throw;
-        }finally
+        }
+        finally
         {
             _logger.Here().MethodExited();
         }
     }
 
-    private string GetEmailData(UserInvitationSent message, string identityBaseUrl)
+    private string GetEmailData(ManagementUserPasswordEmailSent message)
     {
-        JObject data = JObject.Parse(message.AdditionalProperties.ToString());
-        string token = data["token"].ToString();
-
-        Uri url = new($"{identityBaseUrl}/account/emailverification?userId={message.UserId}&token={token}");
         List<TemplateFields> fields =
         [
-            new("[firstname]", message.FirstName),
-            new("[lastname]", message.LastName),
-            new("[acceptanceLink]", url.ToString())
+            new("[fullName]", message.FullName),
+            new("[email]", message.Email),
+            new("[password]", message.Password),
         ];
 
         return JsonConvert.SerializeObject(fields);

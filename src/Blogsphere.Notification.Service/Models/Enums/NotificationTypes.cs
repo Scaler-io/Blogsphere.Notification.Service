@@ -4,6 +4,8 @@ namespace Blogsphere.Notification.Service.Models.Enums
     {
         UserInvitation,
         AuthCodeSent,
-        PasswordResentInstructionSent
+        PasswordResentInstructionSent,
+        ManagementUserWelcomeEmailSent,
+        ManagementUserPasswordEmailSent
     }
 }
