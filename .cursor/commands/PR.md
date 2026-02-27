@@ -133,7 +133,7 @@ Report back to the user:
 ---
 
 ## Important Rules
-
+- NEVER add message "Made with Cursor" anywhere in the commit message or PR
 - NEVER force push
 - NEVER commit to `main` or `master` directly
 - NEVER include secret files in commits
