@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Blogsphere.Notification.Service.EventBus.Contracts;
 using Blogsphere.Notification.Service.Models.Enums;
 

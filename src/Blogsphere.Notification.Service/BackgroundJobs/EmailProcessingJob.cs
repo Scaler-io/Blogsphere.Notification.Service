@@ -1,6 +1,5 @@
 
 using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Services;
 using Microsoft.Extensions.Options;
 

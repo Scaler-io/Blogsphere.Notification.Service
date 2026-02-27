@@ -1,7 +1,6 @@
 using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.EventBus.Consumers;
 using Blogsphere.Notification.Service.Services;
-using Contracts.Events;
 using MassTransit;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -12,15 +11,15 @@ namespace Blogsphere.Notification.Service.DI
     {
         public static IServiceCollection ConfigureServices(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddMassTransit(config => 
+            services.AddMassTransit(config =>
             {
                 config.SetKebabCaseEndpointNameFormatter();
                 // load consumers from assembly
                 config.AddConsumersFromNamespaceContaining<UserInvitationSentConsumer>();
-                config.UsingRabbitMq((context, cfg) => 
+                config.UsingRabbitMq((context, cfg) =>
                 {
                     var rabbitMq = configuration.GetSection(EventBusOption.OptionName).Get<EventBusOption>();
-                    cfg.Host(rabbitMq.Host, rabbitMq.VirtualHost, host => 
+                    cfg.Host(rabbitMq.Host, rabbitMq.VirtualHost, host =>
                     {
                         host.Username(rabbitMq.Username);
                         host.Password(rabbitMq.Password);
@@ -39,9 +38,9 @@ namespace Blogsphere.Notification.Service.DI
                 .WithTracing(tracing =>
                 {
                     tracing.AddSource("Blogsphere.Notification.Service")
+                    .AddSource("Azure.*")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddSqlClientInstrumentation(options => options.SetDbStatementForText = true)
                     .AddJaegerExporter(options =>
                     {
                         options.AgentHost = configuration["Jaeger:Host"];

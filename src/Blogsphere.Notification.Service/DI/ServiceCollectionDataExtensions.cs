@@ -1,8 +1,5 @@
-using Amazon.S3;
-using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Data;
 using Blogsphere.Notification.Service.Data.Storage;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Azure;
 
 namespace Blogsphere.Notification.Service.DI
 {
@@ -10,26 +7,18 @@ namespace Blogsphere.Notification.Service.DI
     {
         public static IServiceCollection ConfigureDataServices(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddDbContext<NotificationDbContext>(options => 
+
+            services.AddAzureClients(builder =>
             {
-                options.UseSqlServer(configuration.GetConnectionString("SqlServer"), options => {
-                    options.MigrationsHistoryTable("__EFMigrationsHistory", "blogsphere");
-                });
+                builder.AddBlobServiceClient(configuration.GetConnectionString("BlobStorage"))
+                    .ConfigureOptions(options => options.Retry.MaxRetries = 3);
+
+                builder.AddTableServiceClient(configuration.GetConnectionString("AzureTableStorage"))
+                    .ConfigureOptions(options => options.Retry.MaxRetries = 3);
             });
 
-            services.AddTransient(sp => 
-            {
-                var blobStorageOption = configuration.GetSection(BlobStorageOption.OptionName).Get<BlobStorageOption>();
-                var config = new AmazonS3Config
-                {
-                    ServiceURL = blobStorageOption.ServiceUrl, // MinIO endpoint
-                    ForcePathStyle = true,                // Required for MinIO
-                    SignatureMethod = Amazon.Runtime.SigningAlgorithm.HmacSHA256
-                };
-                return new AmazonS3Client(blobStorageOption.UserName, blobStorageOption.Password, config);
-            });
-
-            services.AddScoped<IBlobStorageService, BlobStorageService>();
+            services.AddScoped(typeof(ITableRepository<>), typeof(TableRepository<>));
+            services.AddScoped<IBlobRepository, BlobRepository>();
 
             return services;
         }

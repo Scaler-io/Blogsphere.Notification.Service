@@ -1,9 +1,15 @@
+using Azure;
+using Azure.Data.Tables;
+
 namespace Blogsphere.Notification.Service.Entities;
 
-public class EntityBase
+public class EntityBase : ITableEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public string PartitionKey { get; set; }
+    public string RowKey { get; set; }
+    public DateTimeOffset? Timestamp { get; set; }
     public string CorrelationId { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public ETag ETag { get; set; }
+    public DateTimeOffset? CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 }

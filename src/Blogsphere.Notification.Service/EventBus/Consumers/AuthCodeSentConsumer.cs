@@ -1,59 +1,59 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Data;
+using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
 using Contracts.Events;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace Blogsphere.Notification.Service.EventBus.Consumers;
 
-public class AuthCodeSentConsumer(ILogger logger, NotificationDbContext dbContext, IOptions<EmailTemplates> emailTemplates) : IConsumer<AuthCodeSent>
+public class AuthCodeSentConsumer(ILogger logger, ITableRepository<NotificationHistory> notificationHistoryRepository, IOptions<EmailTemplates> emailTemplates) : IConsumer<AuthCodeSent>
 {
     private readonly ILogger _logger = logger;
     private readonly EmailTemplates _emailTemplates = emailTemplates.Value;
-    private readonly NotificationDbContext _dbContext = dbContext;
+    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
 
     public async Task Consume(ConsumeContext<AuthCodeSent> context)
     {
-         _logger.Here().MethodEntered();
+        _logger.Here().MethodEntered();
         _logger.Here()
             .ForContext("MessageId", context.MessageId)
             .WithCorrelationId(context.Message.CorrelationId)
             .Information("Message processing started for event {eventName}", nameof(AuthCodeSent));
 
-        try{
-            
+        try
+        {
             NotificationHistory notification = new()
             {
+                PartitionKey = context.Message.Email,
+                RowKey = Guid.NewGuid().ToString(),
                 Subject = EmailSubjects.AuthCodeSent,
                 Data = GetEmailData(context.Message),
                 CorrelationId = context.Message.CorrelationId,
                 IsPublished = false,
                 TemplateName = _emailTemplates.AuthCodeSent,
-                RecipientEmail = context.Message.Email
+                RecipientEmail = context.Message.Email,
+                CreatedAt = context.Message.CreatedOn == default
+                    ? DateTimeOffset.UtcNow
+                    : new DateTimeOffset(context.Message.CreatedOn, TimeSpan.Zero),
+                UpdatedAt = DateTimeOffset.UtcNow
             };
-            _dbContext.NotificationHistories.Add(notification);
-            await _dbContext.SaveChangesAsync();
+            await _notificationHistoryRepository.AddAsync(notification);
 
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)
                 .Information("Notification history table updated with new notification");
 
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
-             _logger.Here()
-                .WithCorrelationId(context.Message.CorrelationId)
-                .Error(ex.Message, "Error processing message for event {eventName}", nameof(UserInvitationSent));
+            _logger.Here()
+               .WithCorrelationId(context.Message.CorrelationId)
+               .Error(ex.Message, "Error processing message for event {eventName}", nameof(UserInvitationSent));
             throw;
         }
         finally
