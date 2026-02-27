@@ -1,6 +1,5 @@
 using Blogsphere.Notification.Service.Configurations;
 using Destructurama;
-using Serilog.Core;
 using Serilog.Sinks.SystemConsole.Themes;
 
 namespace Blogsphere.Notification.Service;
