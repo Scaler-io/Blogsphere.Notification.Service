@@ -7,5 +7,5 @@ public class NotificationHistory : EntityBase
     public string Data { get; set; }
     public string TemplateName { get; set; }
     public bool IsPublished { get; set; }
-    public DateTime PublishTime { get; set; }
+    public DateTimeOffset? PublishTime { get; set; }
 }
