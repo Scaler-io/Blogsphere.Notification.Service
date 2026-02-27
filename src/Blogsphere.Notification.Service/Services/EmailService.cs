@@ -1,30 +1,28 @@
 
 using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Data;
 using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Notification;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Newtonsoft.Json;
 
 namespace Blogsphere.Notification.Service.Services;
 
-public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger logger, NotificationDbContext dbContext, IBlobStorageService blobStorageService) 
+public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger logger, ITableRepository<NotificationHistory> notificationHistoryRepository, IBlobRepository blobRepository) 
     : EmailServiceBase(emailSettings.Value, logger), IEmailService 
 {
-    private readonly NotificationDbContext _dbContext = dbContext; 
-    private readonly IBlobStorageService _blobStorageService = blobStorageService;
+    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository; 
+    private readonly IBlobRepository _blobRepository = blobRepository;
 
     public async Task SendEmailAsync()
     {
-        var notificationsToProcess = await _dbContext.NotificationHistories
-            .Where(x => !x.IsPublished)
-            .ToListAsync();
+        var filter = "IsPublished eq false";
+        var notificationsToProcess = await _notificationHistoryRepository.QueryAsync(filter);
+        
 
-            if(notificationsToProcess == null || notificationsToProcess.Count == 0)
+        if(notificationsToProcess == null || !notificationsToProcess.Any())
         {
             _logger.Here().Information("No notifications to process");
             return;
@@ -40,9 +38,9 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
             {
                 await mailClient.SendAsync(mail);
                 notification.IsPublished = true;
-                notification.PublishTime = DateTime.UtcNow;
-                _dbContext.NotificationHistories.Update(notification);
-                await _dbContext.SaveChangesAsync();   
+                notification.PublishTime = DateTimeOffset.UtcNow;
+                notification.UpdatedAt = DateTimeOffset.UtcNow;
+                await _notificationHistoryRepository.UpdateAsync(notification);
             }
             catch(Exception ex)
             {
@@ -53,7 +51,7 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
 
     protected override async Task<MimeMessage> ProcessMessage(NotificationHistory notification)
     {
-        var emailTempateText = await _blobStorageService.GetBlobAsync($"templates/{notification.TemplateName}.html");
+        var emailTempateText = await _blobRepository.GetBlobAsync("templates", $"{notification.TemplateName}.html");
         var emailFields = JsonConvert.DeserializeObject<List<TemplateFields>>(notification.Data);
         var builder = new BodyBuilder();
 
@@ -63,7 +61,6 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
         
         foreach(var field in emailFields)
         {
-            _logger.Here().Information("field {0}: {1}", field.Key, field.Value);
             emailBuilder.Replace(field.Key, field.Value);
         }
 

@@ -1,26 +1,21 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Data;
+using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
 using Contracts.Events;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace Blogsphere.Notification.Service.EventBus.Consumers;
 
-public class ManagementUserPasswordEmailSentConsumer(ILogger logger, IOptions<EmailTemplates> emailTemplates, NotificationDbContext notificationDbContext) : IConsumer<ManagementUserPasswordEmailSent>
+public class ManagementUserPasswordEmailSentConsumer(ILogger logger, IOptions<EmailTemplates> emailTemplates, ITableRepository<NotificationHistory> notificationHistoryRepository) : IConsumer<ManagementUserPasswordEmailSent>
 {
     private readonly ILogger _logger = logger;
     private readonly EmailTemplates _emailTemplates = emailTemplates.Value;
-    private readonly NotificationDbContext _notificationDbContext = notificationDbContext;
+    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
 
     public async Task Consume(ConsumeContext<ManagementUserPasswordEmailSent> context)
     {
@@ -41,8 +36,7 @@ public class ManagementUserPasswordEmailSentConsumer(ILogger logger, IOptions<Em
                 TemplateName = _emailTemplates.ManagementUserPasswordEmailSent,
                 RecipientEmail = context.Message.Email
             };
-            _notificationDbContext.NotificationHistories.Add(notification);
-            await _notificationDbContext.SaveChangesAsync();
+            await _notificationHistoryRepository.AddAsync(notification);
 
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)

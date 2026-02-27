@@ -1,22 +1,21 @@
 ﻿using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Data;
+using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
 using Contracts.Events;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Blogsphere.Notification.Service.EventBus.Consumers;
-public class PasswordResetInstructionSentConsumer(ILogger logger, NotificationDbContext notificationDbContext,
+public class PasswordResetInstructionSentConsumer(ILogger logger, ITableRepository<NotificationHistory> notificationHistoryRepository,
     IConfiguration configuration, IOptions<EmailTemplates> emailTemplates) : IConsumer<PasswordResetInstructionSent>
 {
     private readonly ILogger _logger = logger;
-    private readonly NotificationDbContext _notificationDbContext = notificationDbContext;
+    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
     private readonly IConfiguration _configuration = configuration;
     private readonly EmailTemplates _emailTemplates = emailTemplates.Value;
 
@@ -40,8 +39,7 @@ public class PasswordResetInstructionSentConsumer(ILogger logger, NotificationDb
                 TemplateName = _emailTemplates.PasswordResetInstructionSent,
                 RecipientEmail = context.Message.Email
             };
-            _notificationDbContext.NotificationHistories.Add(notification);
-            await _notificationDbContext.SaveChangesAsync();
+            await _notificationHistoryRepository.AddAsync(notification);
 
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)

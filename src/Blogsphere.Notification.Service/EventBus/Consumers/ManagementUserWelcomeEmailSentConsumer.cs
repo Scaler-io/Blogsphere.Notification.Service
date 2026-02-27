@@ -1,11 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Blogsphere.Notification.Service.Configurations;
-using Blogsphere.Notification.Service.Data;
+using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
-using Blogsphere.Notification.Service.EventBus.Contracts;
 using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
@@ -19,11 +14,11 @@ namespace Blogsphere.Notification.Service.EventBus.Consumers;
 public class ManagementUserWelcomeEmailSentConsumer(
     ILogger logger,
     IOptions<EmailTemplates> emailTemplates,
-    NotificationDbContext dbContext) : IConsumer<ManagementUserWelcomeEmailSent>
+    ITableRepository<NotificationHistory> notificationHistoryRepository) : IConsumer<ManagementUserWelcomeEmailSent>
 {
     private readonly ILogger _logger = logger;
     private readonly EmailTemplates _emailTemplates = emailTemplates.Value;
-    private readonly NotificationDbContext _dbContext = dbContext;
+    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
 
     public async Task Consume(ConsumeContext<ManagementUserWelcomeEmailSent> context)
     {
@@ -45,8 +40,7 @@ public class ManagementUserWelcomeEmailSentConsumer(
                 RecipientEmail = context.Message.Email
             };
 
-            _dbContext.NotificationHistories.Add(notification);
-            await _dbContext.SaveChangesAsync();
+            await _notificationHistoryRepository.AddAsync(notification);
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)
                 .Information("Notification history table updated with new notification");
