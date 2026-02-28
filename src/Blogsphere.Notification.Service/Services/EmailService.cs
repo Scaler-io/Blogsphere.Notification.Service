@@ -10,19 +10,22 @@ using Newtonsoft.Json;
 
 namespace Blogsphere.Notification.Service.Services;
 
-public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger logger, ITableRepository<NotificationHistory> notificationHistoryRepository, IBlobRepository blobRepository) 
-    : EmailServiceBase(emailSettings.Value, logger), IEmailService 
+public class EmailService(
+    IOptions<EmailSettingOptions> emailSettings,
+    ILogger logger,
+    ITableRepository<NotificationHistory> notificationHistoryRepository,
+    IBlobRepository blobRepository)
+    : EmailServiceBase(emailSettings.Value, logger), IEmailService
 {
-    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository; 
+    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
     private readonly IBlobRepository _blobRepository = blobRepository;
 
     public async Task SendEmailAsync()
     {
         var filter = "IsPublished eq false";
         var notificationsToProcess = await _notificationHistoryRepository.QueryAsync(filter);
-        
 
-        if(notificationsToProcess == null || !notificationsToProcess.Any())
+        if (notificationsToProcess == null || !notificationsToProcess.Any())
         {
             _logger.Here().Information("No notifications to process");
             return;
@@ -30,19 +33,19 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
 
         var mailClient = await CreateMailClient();
 
-        foreach(var notification in notificationsToProcess)
+        foreach (var notification in notificationsToProcess)
         {
             _logger.Here().Information("Message processing {@subject}", notification.Subject);
-            var mail = await ProcessMessage(notification);
             try
             {
+                var mail = await ProcessMessage(notification);
                 await mailClient.SendAsync(mail);
                 notification.IsPublished = true;
                 notification.PublishTime = DateTimeOffset.UtcNow;
                 notification.UpdatedAt = DateTimeOffset.UtcNow;
                 await _notificationHistoryRepository.UpdateAsync(notification);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Error sending email {@subject}", notification.Subject);
             }
@@ -58,8 +61,8 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
         var emailBuilder = new StringBuilder();
         using var reader = new StreamReader(emailTempateText);
         emailBuilder.Append(await reader.ReadToEndAsync());
-        
-        foreach(var field in emailFields)
+
+        foreach (var field in emailFields)
         {
             emailBuilder.Replace(field.Key, field.Value);
         }
@@ -73,4 +76,5 @@ public class EmailService(IOptions<EmailSettingOptions> emailSettings, ILogger l
 
         return email;
     }
+
 }
