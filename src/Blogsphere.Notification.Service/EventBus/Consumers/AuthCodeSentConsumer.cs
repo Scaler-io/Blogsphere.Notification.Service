@@ -27,10 +27,20 @@ public class AuthCodeSentConsumer(ILogger logger, ITableRepository<NotificationH
 
         try
         {
+            var messageId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
+            var partitionKey = context.Message.Email;
+            if (await _notificationHistoryRepository.ExistsAsync(partitionKey, messageId))
+            {
+                _logger.Here()
+                    .WithCorrelationId(context.Message.CorrelationId)
+                    .Information("Notification already recorded for message {messageId}", messageId);
+                return;
+            }
+
             NotificationHistory notification = new()
             {
-                PartitionKey = context.Message.Email,
-                RowKey = Guid.NewGuid().ToString(),
+                PartitionKey = partitionKey,
+                RowKey = messageId,
                 Subject = EmailSubjects.AuthCodeSent,
                 Data = GetEmailData(context.Message),
                 CorrelationId = context.Message.CorrelationId,

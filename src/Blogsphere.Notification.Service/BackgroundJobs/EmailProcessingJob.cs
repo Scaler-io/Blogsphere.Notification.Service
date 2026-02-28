@@ -12,7 +12,7 @@ public class EmailProcessingJob(IOptions<AppConfigOption> appConfigOption, IServ
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while(!stoppingToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             System.Console.WriteLine($"Next job running {DateTime.Now.AddSeconds(10)}");
             using var scope = _serviceProvider.CreateScope();

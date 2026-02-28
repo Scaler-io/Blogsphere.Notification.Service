@@ -1,4 +1,4 @@
-﻿using Blogsphere.Notification.Service.Configurations;
+using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
@@ -30,14 +30,28 @@ public class PasswordResetInstructionSentConsumer(ILogger logger, ITableReposito
         try
         {
             var identityBaseUrl = _configuration["InfrastructureSettings:identityBaseUrl"];
+            var messageId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
+            var partitionKey = context.Message.Email;
+            if (await _notificationHistoryRepository.ExistsAsync(partitionKey, messageId))
+            {
+                _logger.Here()
+                    .WithCorrelationId(context.Message.CorrelationId)
+                    .Information("Notification already recorded for message {messageId}", messageId);
+                return;
+            }
+
             NotificationHistory notification = new()
             {
+                PartitionKey = partitionKey,
+                RowKey = messageId,
                 Subject = EmailSubjects.PasswordResetInstructionSent,
                 Data = GetEmailData(context.Message, identityBaseUrl),
                 CorrelationId = context.Message.CorrelationId,  
                 IsPublished = false,
                 TemplateName = _emailTemplates.PasswordResetInstructionSent,
-                RecipientEmail = context.Message.Email
+                RecipientEmail = context.Message.Email,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
             };
             await _notificationHistoryRepository.AddAsync(notification);
 

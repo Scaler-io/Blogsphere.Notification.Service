@@ -43,6 +43,10 @@ services:
       - EventBus__Username=guest
       - EventBus__Password=${RABBITMQ_PASSWORD}
       - EventBus__VirtualHost=/
+      - ErrorQueueReprocessor__Enabled=true
+      - ErrorQueueReprocessor__PollIntervalSeconds=30
+      - ErrorQueueReprocessor__MaxAttempts=2
+      - ErrorQueueReprocessor__ErrorQueues=[auth-code-sent_error,user-invitation-sent_error,password-reset-instruction-sent_error,management-user-welcome-email-sent_error,management-user-password-email-sent_error]
       - EmailTemplates__UserInvite=UserInvitationSent
       - EmailTemplates__AuthCodeSent=AuthCodeSent
       - EmailTemplates__PasswordResetInstructionSent=PasswordResetInstructionSent
