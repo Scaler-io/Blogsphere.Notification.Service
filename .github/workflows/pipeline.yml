@@ -23,16 +23,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  DOTNET_VERSION: "8.0.100"
-  BUILD_CONFIGURATION: "Release"
-  PROJECT_PATH: "src/Blogsphere.Notification.Service/Blogsphere.Notification.Service.csproj"
-  BUILD_PLATFORM: "Any CPU"
-  BUILD_OUTPUT_DIR: "build-output"
-  ANALYSIS_REPORT: "code-analysis-report.csv"
-  DOCKERFILE_PATH: "src/Blogsphere.Notification.Service/Dockerfile"
-  DOCKER_CONTEXT: "src"
-
 jobs:
   build:
     name: Build
@@ -41,11 +31,11 @@ jobs:
       actions: write
     uses: ./.github/workflows/build.yml
     with:
-      dotnet_version: ${{ env.DOTNET_VERSION }}
-      configuration: ${{ env.BUILD_CONFIGURATION }}
-      project_path: ${{ env.PROJECT_PATH }}
-      build_platform: ${{ env.BUILD_PLATFORM }}
-      output_dir: ${{ env.BUILD_OUTPUT_DIR }}
+      dotnet_version: "8.0.100"
+      configuration: "Release"
+      project_path: "src/Blogsphere.Notification.Service/Blogsphere.Notification.Service.csproj"
+      build_platform: "Any CPU"
+      output_dir: "build-output"
 
   code_analysis:
     name: Code Analysis
@@ -55,10 +45,10 @@ jobs:
       actions: write
     uses: ./.github/workflows/code-analysis.yml
     with:
-      dotnet_version: ${{ env.DOTNET_VERSION }}
-      configuration: ${{ env.BUILD_CONFIGURATION }}
-      build_output_dir: ${{ env.BUILD_OUTPUT_DIR }}
-      analysis_report: ${{ env.ANALYSIS_REPORT }}
+      dotnet_version: "8.0.100"
+      configuration: "Release"
+      build_output_dir: "build-output"
+      analysis_report: "code-analysis-report.csv"
 
   github_release:
     name: GitHub Release
@@ -76,8 +66,8 @@ jobs:
     with:
       image_name: ${{ vars.IMAGE_NAME }}
       tag: ${{ needs.github_release.outputs.release_tag }}
-      dockerfile_path: ${{ env.DOCKERFILE_PATH }}
-      context: ${{ env.DOCKER_CONTEXT }}
+      dockerfile_path: "src/Blogsphere.Notification.Service/Dockerfile"
+      context: "src"
       registry: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
     secrets:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
