@@ -1,23 +1,31 @@
 version: "3.8"
 
 services:
-  notificationDb:
-    container_name: notificationDb
-    volumes:
-      - notificationDb_data:/var/opt/mssql
-    environment:
-      - MSSQL_PID=Express
-      - SA_PASSWORD=P@ssw0rd
-      - ACCEPT_EULA=Y
+  blogspherenfstrg:
+    container_name: blogspherenfstrg
     ports:
-      - 1434:1433
+      - "21000:10000" # Blob Storage
+      - "21001:10001" # Queue Storage
+      - "21002:10002" # Table Storage
+    environment:
+      - "AZURITE_ACCOUNTS=blogspherenfstrg:123e4567e89b12d3a456426614174000"
+    volumes:
+      - blogspherenfstrg_data:/data
+    command: >
+      azurite
+       --location /data
+       --loose
+       --blobHost 0.0.0.0 --blobPort 10000
+       --queueHost 0.0.0.0 --queuePort 10001
+       --tableHost 0.0.0.0 --tablePort 10002
+    restart: unless-stopped
     networks:
       - blogsphere_dev_net
 
   blogsphere.notification.service:
     container_name: Blogsphere.Notification.Service
     depends_on:
-      - notificationDb
+      - blogspherenfstrg
     environment:
       - ASPNETCORE_ENVIRONMENT=Docker
       - "Logging__LogOutputTemplate=[{Timestamp:dd-MM-yyyy HH:mm:ss, fff}] {Level} {Properties} [CorrelationId:{CorrelationId}] [Machine: {MachineName}] {CallerType}:{MemberName} {Message}{NewLine}{Exception}{NewLine}"
@@ -37,7 +45,7 @@ services:
       - EventBus__VirtualHost=/
       - EmailTemplates__UserInvite=UserInvitationSent
       - EmailTemplates__AuthCodeSent=AuthCodeSent
-      - EmailTemplates__PasswordResetInstructionSent=PasswordResetInstructionSent 
+      - EmailTemplates__PasswordResetInstructionSent=PasswordResetInstructionSent
       - EmailSettings__Server=sandbox.smtp.mailtrap.io
       - EmailSettings__Port=587
       - EmailSettings__CompanyAddress=support@blogsphere

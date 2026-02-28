@@ -7,12 +7,12 @@ services:
       context: .
       dockerfile: Blogsphere.Notification.Service/Dockerfile
 
-  notificationDb:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  blogspherenfstrg:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
 
 networks:
   blogsphere_dev_net:
     external: true
 
 volumes:
-  notificationDb_data:
+  blogspherenfstrg_data:
