@@ -30,14 +30,28 @@ public class ManagementUserWelcomeEmailSentConsumer(
 
         try
         {
+            var messageId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
+            var partitionKey = context.Message.Email;
+            if (await _notificationHistoryRepository.ExistsAsync(partitionKey, messageId))
+            {
+                _logger.Here()
+                    .WithCorrelationId(context.Message.CorrelationId)
+                    .Information("Notification already recorded for message {messageId}", messageId);
+                return;
+            }
+
             NotificationHistory notification = new()
             {
+                PartitionKey = partitionKey,
+                RowKey = messageId,
                 Subject = EmailSubjects.ManagementUserWelcomeEmailSent,
                 Data = GetEmailData(context.Message),
                 CorrelationId = context.Message.CorrelationId,
                 IsPublished = false,
                 TemplateName = _emailTemplates.ManagementUserWelcomeEmailSent,
-                RecipientEmail = context.Message.Email
+                RecipientEmail = context.Message.Email,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
             };
 
             await _notificationHistoryRepository.AddAsync(notification);

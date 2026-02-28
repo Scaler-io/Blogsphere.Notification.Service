@@ -30,14 +30,28 @@ public class UserInvitationSentConsumer(ILogger logger, IOptions<EmailTemplates>
         try
         {
             var identityBaseUrl = _configuration["InfrastructureSettings:identityBaseUrl"];
+            var messageId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
+            var partitionKey = context.Message.Email;
+            if (await _notificationHistoryRepository.ExistsAsync(partitionKey, messageId))
+            {
+                _logger.Here()
+                    .WithCorrelationId(context.Message.CorrelationId)
+                    .Information("Notification already recorded for message {messageId}", messageId);
+                return;
+            }
+
             NotificationHistory notification = new()
             {
+                PartitionKey = partitionKey,
+                RowKey = messageId,
                 Subject = EmailSubjects.UserInvitation,
                 Data = GetEmailData(context.Message, identityBaseUrl),
                 CorrelationId = context.Message.CorrelationId,
                 IsPublished = false,
                 TemplateName = _emailTemplates.UserInvite,
-                RecipientEmail = context.Message.Email
+                RecipientEmail = context.Message.Email,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
             };
 
             await _notificationHistoryRepository.AddAsync(notification);
@@ -46,13 +60,14 @@ public class UserInvitationSentConsumer(ILogger logger, IOptions<EmailTemplates>
                 .WithCorrelationId(context.Message.CorrelationId)
                 .Information("Notification history table updated with new notification");
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             _logger.Here()
                 .WithCorrelationId(context.Message.CorrelationId)
                 .Error(ex.Message, "Error processing message for event {eventName}", nameof(UserInvitationSent));
             throw;
-        }finally
+        }
+        finally
         {
             _logger.Here().MethodExited();
         }
