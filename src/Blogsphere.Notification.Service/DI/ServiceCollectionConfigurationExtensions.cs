@@ -11,7 +11,8 @@ public static class ServiceCollectionConfigurationExtensions
         .Configure<EmailSettingOptions>(configuration.GetSection(EmailSettingOptions.OptionName))
         .Configure<EventBusOption>(configuration.GetSection(EventBusOption.OptionName))
         .Configure<EmailTemplates>(configuration.GetSection(EmailTemplates.OptionName))
-        .Configure<BlobStorageOption>(configuration.GetSection(BlobStorageOption.OptionName));
+        .Configure<BlobStorageOption>(configuration.GetSection(BlobStorageOption.OptionName))
+        .Configure<ErrorQueueReprocessorOption>(configuration.GetSection(ErrorQueueReprocessorOption.OptionName));
 
         return services;
     }
