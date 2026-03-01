@@ -90,7 +90,7 @@ public class ErrorQueueReprocessorJob(
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Unable to read from error queue {queueName}", errorQueue);
+                _logger.Here().Warning(ex, "Unable to read from error queue {queueName}", errorQueue);
                 return;
             }
 
