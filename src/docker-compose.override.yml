@@ -46,10 +46,11 @@ services:
       - ErrorQueueReprocessor__Enabled=true
       - ErrorQueueReprocessor__PollIntervalSeconds=30
       - ErrorQueueReprocessor__MaxAttempts=2
-      - ErrorQueueReprocessor__ErrorQueues=[auth-code-sent_error,user-invitation-sent_error,password-reset-instruction-sent_error,management-user-welcome-email-sent_error,management-user-password-email-sent_error]
+      - ErrorQueueReprocessor__ErrorQueues=[auth-code-sent_error,user-invitation-sent_error,password-reset-instruction-sent_error,password-reset-one-time-code-sent_error,management-user-welcome-email-sent_error,management-user-password-email-sent_error]
       - EmailTemplates__UserInvite=UserInvitationSent
       - EmailTemplates__AuthCodeSent=AuthCodeSent
       - EmailTemplates__PasswordResetInstructionSent=PasswordResetInstructionSent
+      - EmailTemplates__PasswordResetOneTimeCodeSent=PasswordResetOneTimeCodeSent
       - EmailSettings__Server=sandbox.smtp.mailtrap.io
       - EmailSettings__Port=587
       - EmailSettings__CompanyAddress=support@blogsphere
