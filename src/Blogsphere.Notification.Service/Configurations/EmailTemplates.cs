@@ -8,4 +8,5 @@ public sealed class EmailTemplates
     public string PasswordResetInstructionSent { get; set; }
     public string ManagementUserWelcomeEmailSent { get; set; }
     public string ManagementUserPasswordEmailSent { get; set; }
+    public string PasswordResetOneTimeCodeSent { get; set; }
 }

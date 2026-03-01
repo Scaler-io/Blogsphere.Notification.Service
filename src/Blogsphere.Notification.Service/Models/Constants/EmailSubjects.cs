@@ -7,4 +7,5 @@ public class EmailSubjects
     public const string PasswordResetInstructionSent = "Reset Your Password � Instructions Inside";
     public const string ManagementUserWelcomeEmailSent = "Welcome to Blogsphere Management Portal";
     public const string ManagementUserPasswordEmailSent = "Your Blogsphere Management Portal Password";
+    public const string PasswordResetOneTimeCode = "Your Blogsphere Password Reset Code";
 }
