@@ -6,6 +6,7 @@ namespace Blogsphere.Notification.Service.Models.Enums
         AuthCodeSent,
         PasswordResentInstructionSent,
         ManagementUserWelcomeEmailSent,
-        ManagementUserPasswordEmailSent
+        ManagementUserPasswordEmailSent,
+        PasswordResetOneTimeCodeSent
     }
 }
