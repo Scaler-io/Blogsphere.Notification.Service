@@ -28,14 +28,19 @@ public class AuthCodeSentConsumer(
     protected override string GetEmailData(AuthCodeSent message)
     {
         var purpose = JObject.Parse(message.AdditionalProperties.ToString())["purpose"].ToString();
-        var disable2FABody = "We received a request to disable two-factor authentication (2FA) for your Blogsphere account. To complete the process, please use the verification code below:";
 
-        var signInBody = "We received a request to sign in to your Blogsphere account. To complete the sign-in process, please use the verification code below:";
+        var messageBody = purpose switch
+        {
+            "SelfResetPassword" => AuthCodeEmailBody.SelfResetPassword,
+            "Disable2FA" => AuthCodeEmailBody.Disable2FA,
+            "SignIn" => AuthCodeEmailBody.SignIn,
+            _ => throw new InvalidOperationException($"Invalid purpose: {purpose}")
+        };
         return JsonConvert.SerializeObject(new List<TemplateFields>
         {
             new("[Email]", message.Email),
             new("[VerificationCode]", message.Code),
-            new("[Message]", purpose == "Disable2FA" ? disable2FABody : signInBody )
+            new("[Message]", messageBody)
         });
     }
 
