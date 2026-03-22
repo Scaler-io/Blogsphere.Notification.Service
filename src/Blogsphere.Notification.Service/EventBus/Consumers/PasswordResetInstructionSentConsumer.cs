@@ -1,91 +1,40 @@
 using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
-using Blogsphere.Notification.Service.Extensions;
 using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
+using Blogsphere.Notification.Service.Services.Validation;
 using Contracts.Events;
-using MassTransit;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Blogsphere.Notification.Service.EventBus.Consumers;
-public class PasswordResetInstructionSentConsumer(ILogger logger, ITableRepository<NotificationHistory> notificationHistoryRepository,
-    IConfiguration configuration, IOptions<EmailTemplates> emailTemplates) : IConsumer<PasswordResetInstructionSent>
+
+public class PasswordResetInstructionSentConsumer(
+    ILogger logger,
+    ITableRepository<NotificationHistory> notificationHistoryRepository,
+    IConfiguration configuration,
+    IOptions<EmailTemplates> emailTemplates,
+    IValidationService validationService)
+    : NotificationConsumerBase<PasswordResetInstructionSent>(logger, notificationHistoryRepository, emailTemplates, validationService, configuration)
 {
-    private readonly ILogger _logger = logger;
-    private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
-    private readonly IConfiguration _configuration = configuration;
-    private readonly EmailTemplates _emailTemplates = emailTemplates.Value;
-
-    public async Task Consume(ConsumeContext<PasswordResetInstructionSent> context)
+    protected override string GetEventName() => nameof(PasswordResetInstructionSent);
+    protected override string GetSubject() => EmailSubjects.PasswordResetInstructionSent;
+    protected override string GetTemplateName() => EmailTemplates.PasswordResetInstructionSent;
+    protected override string GetPartitionKey(PasswordResetInstructionSent message) => message.Email;
+    protected override string GetCorrelationId(PasswordResetInstructionSent message) => message.CorrelationId;
+    protected override DateTimeOffset? GetCreatedAt(PasswordResetInstructionSent message) => DateTimeOffset.UtcNow;
+    protected override string GetEmailData(PasswordResetInstructionSent message)
     {
-        _logger.Here().MethodEntered();
-        _logger.Here()
-            .ForContext("MessageId", context.MessageId)
-            .WithCorrelationId(context.Message.CorrelationId)
-            .Information("Message processing started for event {eventName}", nameof(AuthCodeSent));
-
-        try
+        var identityBaseUrl = GetIdentityBaseUrl();
+        var data = JObject.Parse(message.AdditionalProperties.ToString());
+        var token = data["token"].ToString();
+        var url = new Uri($"{identityBaseUrl}/account/resetpassword?email={message.Email}&token={token}");
+        return JsonConvert.SerializeObject(new List<TemplateFields>
         {
-            var identityBaseUrl = _configuration["InfrastructureSettings:identityBaseUrl"];
-            var messageId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
-            var partitionKey = context.Message.Email;
-            if (await _notificationHistoryRepository.ExistsAsync(partitionKey, messageId))
-            {
-                _logger.Here()
-                    .WithCorrelationId(context.Message.CorrelationId)
-                    .Information("Notification already recorded for message {messageId}", messageId);
-                return;
-            }
-
-            NotificationHistory notification = new()
-            {
-                PartitionKey = partitionKey,
-                RowKey = messageId,
-                Subject = EmailSubjects.PasswordResetInstructionSent,
-                Data = GetEmailData(context.Message, identityBaseUrl),
-                CorrelationId = context.Message.CorrelationId,  
-                IsPublished = false,
-                TemplateName = _emailTemplates.PasswordResetInstructionSent,
-                RecipientEmail = context.Message.Email,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-            await _notificationHistoryRepository.AddAsync(notification);
-
-            _logger.Here()
-                .WithCorrelationId(context.Message.CorrelationId)
-                .Information("Notification history table updated with new notification");
-
-        }
-        catch (Exception ex)
-        {
-            _logger.Here()
-               .WithCorrelationId(context.Message.CorrelationId)
-               .Error(ex.Message, "Error processing message for event {eventName}", nameof(UserInvitationSent));
-            throw;
-        }
-        finally
-        {
-            _logger.Here().MethodExited();
-        }
-    }
-
-    private string GetEmailData(PasswordResetInstructionSent message, string identityBaseUrl)
-    {
-        JObject data = JObject.Parse(message.AdditionalProperties.ToString());
-        string token = data["token"].ToString();
-
-        Uri url = new($"{identityBaseUrl}/account/resetpassword?email={message.Email}&token={token}");
-
-        List<TemplateFields> fields =
-        [
             new("[[email]]", message.Email),
             new("[[resetlink]]", url.ToString()),
-        ];
-
-        return JsonConvert.SerializeObject(fields);
+        });
     }
 }
