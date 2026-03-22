@@ -33,43 +33,43 @@ Diagram source: [`docs/assets/architecture-flowchart.mmd`](docs/assets/architect
 
 ```mermaid
 flowchart TB
-    RMQ[(RabbitMQ broker)]
+    RMQ([RabbitMQ broker])
 
     subgraph intake["Consumer intake (happy path)"]
-        MT[MassTransit consumers]
-        VAL[Payload and key validation]
+        MT["MassTransit consumers"]
+        VAL["Payload and key validation"]
         RMQ --> MT --> VAL --> TBL[(Azure Table Storage\nnotification history)]
     end
 
     subgraph emailOut["Email outbound (polls Table Storage)"]
-        EJOB[EmailProcessingJob]
-        ESVC[EmailService]
-        RL_E[Sliding-window rate limit\nEmailRateLimit]
-        MERGE[Blob HTML template +\nHtmlSanitizer on field values]
+        EJOB["EmailProcessingJob"]
+        ESVC["EmailService"]
+        RL_E["Sliding-window rate limit\nEmailRateLimit"]
+        MERGE["Blob HTML template\nHtmlSanitizer merge fields"]
         EJOB --> ESVC --> RL_E --> MERGE
     end
 
     subgraph smsOut["SMS outbound (polls Table Storage)"]
-        SJOB[SmsProcessingJob]
-        SSVC[SmsService]
-        RL_S[Sliding-window rate limit\nSmsRateLimit]
-        MSG[MimeMessage\n(test inbox / dev SMTP)]
+        SJOB["SmsProcessingJob"]
+        SSVC["SmsService"]
+        RL_S["Sliding-window rate limit\nSmsRateLimit"]
+        MSG["MimeMessage\ntest inbox, dev SMTP"]
         SJOB --> SSVC --> RL_S --> MSG
     end
 
     TBL -->|"Channel = Email,\nIsPublished = false"| EJOB
     TBL -->|"Channel = SMS,\nIsPublished = false"| SJOB
 
-    MERGE --> FCY[Shared SmtpClientFactory\nMailKit SMTP send]
+    MERGE --> FCY["Shared SmtpClientFactory\nMailKit SMTP send"]
     MSG --> FCY
 
     subgraph retry["Consumer failure only — parallel retry loop"]
-        ERR[MassTransit *_error queues\n(consumer threw after retries)]
-        REP[ErrorQueueReprocessorJob\nBasicPublish to MT-OriginalExchange\n+ MT-OriginalRoutingKey]
+        ERR["MassTransit error queues\nconsumer threw after retries"]
+        REP["ErrorQueueReprocessorJob\nBasicPublish MT-OriginalExchange\nMT-OriginalRoutingKey"]
         ERR --> REP --> RMQ
     end
 
-    MT -.->|fault to error queue| ERR
+    MT -.->|"fault to error queue"| ERR
 ```
 
 ## Tech Stack
