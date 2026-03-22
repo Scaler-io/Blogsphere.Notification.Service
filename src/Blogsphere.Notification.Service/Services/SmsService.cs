@@ -10,14 +10,12 @@ using Blogsphere.Notification.Service.Services.RateLimiting;
 namespace Blogsphere.Notification.Service.Services;
 
 public class SmsService(
-    IOptions<EmailSettingOptions> emailOptions,
     IOptions<SmsSettingOptions> smsOptions,
     ILogger logger,
     ISmtpClientFactory smtpClientFactory,
     ITableRepository<NotificationHistory> notificationHistoryRepository,
     IRateLimiter<SmsRateLimit> rateLimiter) : ISmsService
 {
-    private readonly EmailSettingOptions _emailSettings = emailOptions.Value;
     private readonly SmsSettingOptions _smsSettings = smsOptions.Value;
     private readonly ILogger _logger = logger;
     private readonly ISmtpClientFactory _smtpClientFactory = smtpClientFactory;
@@ -40,8 +38,13 @@ public class SmsService(
             _logger.Here().Warning("SmsSettings:TestInboxAddress is required");
             return;
         }
+        if (string.IsNullOrWhiteSpace(_smsSettings.FromAddress))
+        {
+            _logger.Here().Warning("SmsSettings:FromAddress is required");
+            return;
+        }
 
-        var mailClient = await _smtpClientFactory.CreateMailtrapClient();
+        var mailtrapClient = await _smtpClientFactory.CreateMailtrapClient();
 
         foreach (var notification in notificationsToProcess)
         {
@@ -54,8 +57,9 @@ public class SmsService(
             _logger.Here().Information("SMS processing {@subject}", notification.Subject);
             try
             {
-                var mail = ProcessMessage(notification);
-                await mailClient.SendAsync(mail);
+                var smsMessage = BuildSmsMessage(notification);
+                
+                await mailtrapClient.SendAsync(smsMessage);
                 notification.IsPublished = true;
                 notification.PublishTime = DateTimeOffset.UtcNow;
                 notification.UpdatedAt = DateTimeOffset.UtcNow;
@@ -68,22 +72,22 @@ public class SmsService(
         }
     }
 
-    private MimeMessage ProcessMessage(NotificationHistory notification)
+    private MimeMessage BuildSmsMessage(NotificationHistory notification)
     {
-        var mail = new MimeMessage();
-        mail.To.Add(MailboxAddress.Parse(_smsSettings.TestInboxAddress));
-        var from = string.IsNullOrWhiteSpace(_smsSettings.FromAddress)
-            ? _emailSettings.CompanyAddress
-            : _smsSettings.FromAddress;
-        if (!string.IsNullOrWhiteSpace(from))
-            mail.Sender = MailboxAddress.Parse(from);
+        var smsMessage = new MimeMessage();
+        var toAddress = MailboxAddress.Parse(_smsSettings.TestInboxAddress);
+        var fromAddress = MailboxAddress.Parse(_smsSettings.FromAddress);
 
-        mail.Subject = $"SMS to {notification.RecipientPhone}";
-        mail.Body = new TextPart("plain")
+        smsMessage.To.Add(new MailboxAddress(notification.RecipientPhone, toAddress.Address));
+        smsMessage.From.Add(fromAddress);
+        smsMessage.Sender = fromAddress;
+
+        smsMessage.Subject = $"SMS to {notification.RecipientPhone}";
+        smsMessage.Body = new TextPart("plain")
         {
             Text = $"To: {notification.RecipientPhone}\n{notification.Data}"
         };
 
-        return mail;
+        return smsMessage;
     }
 }
