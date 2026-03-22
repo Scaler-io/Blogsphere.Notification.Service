@@ -43,10 +43,13 @@ services:
       - EventBus__Username=guest
       - EventBus__Password=${RABBITMQ_PASSWORD}
       - EventBus__VirtualHost=/
+      - RateLimiter__Enabled=true
+      - RateLimiter__MaxEmailsPerMinute=60
+      - RateLimiter__MaxSmsPerMinute=60
       - ErrorQueueReprocessor__Enabled=true
       - ErrorQueueReprocessor__PollIntervalSeconds=30
       - ErrorQueueReprocessor__MaxAttempts=2
-      - ErrorQueueReprocessor__ErrorQueues=[auth-code-sent_error,user-invitation-sent_error,password-reset-instruction-sent_error,password-reset-one-time-code-sent_error,management-user-welcome-email-sent_error,management-user-password-email-sent_error]
+      - ErrorQueueReprocessor__ErrorQueues=[auth-code-sent_error,user-invitation-sent_error,password-reset-instruction-sent_error,password-reset-one-time-code-sent_error,management-user-welcome-email-sent_error,management-user-password-email-sent_error,phone-verification-code-sent_error]
       - EmailTemplates__UserInvite=UserInvitationSent
       - EmailTemplates__AuthCodeSent=AuthCodeSent
       - EmailTemplates__PasswordResetInstructionSent=PasswordResetInstructionSent
@@ -56,6 +59,8 @@ services:
       - EmailSettings__CompanyAddress=support@blogsphere
       - EmailSettings__UserName=${EMAIL_USERNAME}
       - EmailSettings__Password=${EMAIL_PASSWORD}  
+      - SmsSettings__TestInboxAddress=${SMS_TEST_INBOX}
+      - SmsSettings__FromAddress=support@blogsphere
       - ConnectionStrings__AzureTableStorage=${CONNECTION_STRING_AZURE_TABLE_STORAGE}
       - ConnectionStrings__BlobStorage=${CONNECTION_STRING_BLOB_STORAGE}
       - Zipkin__Url=http://zipkin:9411/api/v2/spans
