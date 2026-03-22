@@ -1,9 +1,11 @@
-
 using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.Data.Storage;
 using Blogsphere.Notification.Service.Entities;
 using Blogsphere.Notification.Service.Extensions;
+using Blogsphere.Notification.Service.Models.Constants;
 using Blogsphere.Notification.Service.Models.Notification;
+using Blogsphere.Notification.Service.Services.RateLimiting;
+using Blogsphere.Notification.Service.Services.Sanitization;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Newtonsoft.Json;
@@ -13,16 +15,24 @@ namespace Blogsphere.Notification.Service.Services;
 public class EmailService(
     IOptions<EmailSettingOptions> emailSettings,
     ILogger logger,
+    ISmtpClientFactory smtpClientFactory,
     ITableRepository<NotificationHistory> notificationHistoryRepository,
-    IBlobRepository blobRepository)
-    : EmailServiceBase(emailSettings.Value, logger), IEmailService
+    IBlobRepository blobRepository,
+    IRateLimiter<EmailRateLimit> rateLimiter,
+    IHtmlSanitizer htmlSanitizer)
+    : IEmailService
 {
+    private readonly EmailSettingOptions _emailSettings = emailSettings.Value;
+    private readonly ILogger _logger = logger;
+    private readonly ISmtpClientFactory _smtpClientFactory = smtpClientFactory;
     private readonly ITableRepository<NotificationHistory> _notificationHistoryRepository = notificationHistoryRepository;
     private readonly IBlobRepository _blobRepository = blobRepository;
+    private readonly IRateLimiter<EmailRateLimit> _rateLimiter = rateLimiter;
+    private readonly IHtmlSanitizer _htmlSanitizer = htmlSanitizer;
 
     public async Task SendEmailAsync()
     {
-        var filter = "IsPublished eq false";
+        var filter = $"IsPublished eq false and Channel eq '{NotificationChannels.Email}'";
         var notificationsToProcess = await _notificationHistoryRepository.QueryAsync(filter);
 
         if (notificationsToProcess == null || !notificationsToProcess.Any())
@@ -31,10 +41,16 @@ public class EmailService(
             return;
         }
 
-        var mailClient = await CreateMailClient();
+        var mailClient = await _smtpClientFactory.CreateMailtrapClient();
 
         foreach (var notification in notificationsToProcess)
         {
+            if (!_rateLimiter.TryAcquire())
+            {
+                _logger.Here().Warning("Rate limit reached, skipping remaining emails this cycle");
+                break;
+            }
+
             _logger.Here().Information("Message processing {@subject}", notification.Subject);
             try
             {
@@ -47,24 +63,25 @@ public class EmailService(
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error sending email {@subject}", notification.Subject);
+                _logger.LogErrorSafely(ex, notification.CorrelationId, "Error sending email for subject {Subject}", notification.Subject);
             }
         }
     }
 
-    protected override async Task<MimeMessage> ProcessMessage(NotificationHistory notification)
+    private async Task<MimeMessage> ProcessMessage(NotificationHistory notification)
     {
-        var emailTempateText = await _blobRepository.GetBlobAsync("templates", $"{notification.TemplateName}.html");
+        var emailTemplateText = await _blobRepository.GetBlobAsync("templates", $"{notification.TemplateName}.html");
         var emailFields = JsonConvert.DeserializeObject<List<TemplateFields>>(notification.Data);
         var builder = new BodyBuilder();
 
         var emailBuilder = new StringBuilder();
-        using var reader = new StreamReader(emailTempateText);
+        using var reader = new StreamReader(emailTemplateText);
         emailBuilder.Append(await reader.ReadToEndAsync());
 
-        foreach (var field in emailFields)
+        foreach (var field in emailFields ?? [])
         {
-            emailBuilder.Replace(field.Key, field.Value);
+            var sanitizedValue = _htmlSanitizer.Sanitize(field.Value);
+            emailBuilder.Replace(field.Key, sanitizedValue);
         }
 
         var email = new MimeMessage();
@@ -76,5 +93,4 @@ public class EmailService(
 
         return email;
     }
-
 }
