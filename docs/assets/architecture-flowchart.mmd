@@ -1,0 +1,49 @@
+%% Blogsphere.Notification.Service — architecture (source for README diagram)
+%% Keep in sync with the ```mermaid block in README.md
+%%
+%% Notes:
+%% - Happy path: RabbitMQ -> consumers -> validation -> Table -> background jobs -> SMTP.
+%% - Retry path is NOT "after" outbound: it runs when MassTransit consumers fail; messages
+%%   land in *_error queues, ErrorQueueReprocessorJob republishes to the original exchange,
+%%   and the same consumer intake runs again (loops back to RabbitMQ).
+%% - SMTP send failures are logged in EmailService/SmsService; they do not use this retry loop.
+%% - Use quoted labels "..." for GitHub Mermaid (special chars like / ( * break unquoted nodes).
+
+flowchart TB
+    RMQ([RabbitMQ broker])
+
+    subgraph intake["Consumer intake (happy path)"]
+        MT["MassTransit consumers"]
+        VAL["Payload and key validation"]
+        RMQ --> MT --> VAL --> TBL[(Azure Table Storage\nnotification history)]
+    end
+
+    subgraph emailOut["Email outbound (polls Table Storage)"]
+        EJOB["EmailProcessingJob"]
+        ESVC["EmailService"]
+        RL_E["Sliding-window rate limit\nEmailRateLimit"]
+        MERGE["Blob HTML template\nHtmlSanitizer merge fields"]
+        EJOB --> ESVC --> RL_E --> MERGE
+    end
+
+    subgraph smsOut["SMS outbound (polls Table Storage)"]
+        SJOB["SmsProcessingJob"]
+        SSVC["SmsService"]
+        RL_S["Sliding-window rate limit\nSmsRateLimit"]
+        MSG["MimeMessage\ntest inbox, dev SMTP"]
+        SJOB --> SSVC --> RL_S --> MSG
+    end
+
+    TBL -->|"Channel = Email,\nIsPublished = false"| EJOB
+    TBL -->|"Channel = SMS,\nIsPublished = false"| SJOB
+
+    MERGE --> FCY["Shared SmtpClientFactory\nMailKit SMTP send"]
+    MSG --> FCY
+
+    subgraph retry["Consumer failure only — parallel retry loop"]
+        ERR["MassTransit error queues\nconsumer threw after retries"]
+        REP["ErrorQueueReprocessorJob\nBasicPublish MT-OriginalExchange\nMT-OriginalRoutingKey"]
+        ERR --> REP --> RMQ
+    end
+
+    MT -.->|"fault to error queue"| ERR

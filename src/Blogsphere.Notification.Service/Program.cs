@@ -22,6 +22,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService<EventBusStarterJob>();
         services.AddHostedService<EmailProcessingJob>();
+        services.AddHostedService<SmsProcessingJob>();
         services.AddHostedService<ErrorQueueReprocessorJob>();
 
     }).UseSerilog(logger)

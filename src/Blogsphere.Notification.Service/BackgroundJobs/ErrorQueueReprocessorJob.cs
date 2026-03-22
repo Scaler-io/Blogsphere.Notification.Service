@@ -3,6 +3,7 @@ using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.Extensions;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace Blogsphere.Notification.Service.BackgroundJobs;
 
@@ -44,7 +45,7 @@ public class ErrorQueueReprocessorJob(
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error while reprocessing error queues");
+                _logger.LogErrorSafely(ex, null, "Error while reprocessing error queues");
             }
 
             await Task.Delay(interval, stoppingToken);
@@ -90,7 +91,11 @@ public class ErrorQueueReprocessorJob(
             }
             catch (Exception ex)
             {
-                _logger.Here().Warning(ex, "Unable to read from error queue {queueName}", errorQueue);
+                if (IsQueueNotFound(ex))
+                {
+                    return;
+                }
+                _logger.LogWarningSafely(ex, null, "Unable to read from error queue {QueueName}", errorQueue);
                 return;
             }
 
@@ -132,7 +137,7 @@ public class ErrorQueueReprocessorJob(
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error while reprocessing message in {queueName}", errorQueue);
+                _logger.LogErrorSafely(ex, null, "Error while reprocessing message in {QueueName}", errorQueue);
                 await channel.BasicNackAsync(result.DeliveryTag, false, true, stoppingToken);
             }
         }
@@ -207,5 +212,14 @@ public class ErrorQueueReprocessorJob(
         return errorQueue.EndsWith("_error", StringComparison.OrdinalIgnoreCase)
             ? errorQueue[..^6]
             : errorQueue;
+    }
+
+    private static bool IsQueueNotFound(Exception ex)
+    {
+        if (ex is OperationInterruptedException op && op.ShutdownReason?.ReplyCode == 404)
+            return true;
+        if (ex is AlreadyClosedException closed && closed.ShutdownReason?.ReplyCode == 404)
+            return true;
+        return false;
     }
 }

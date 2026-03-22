@@ -1,31 +1,76 @@
 # Blogsphere.Notification.Service
 
-A .NET 8 background service that processes notification events from RabbitMQ and sends emails. Part of the Blogsphere ecosystem, it consumes event messages, persists notification records to Azure Table Storage, renders HTML email templates from Azure Blob Storage, and delivers emails via SMTP.
+A .NET 8 background service that processes notification events from RabbitMQ and delivers **email** and **SMS** notifications. Part of the Blogsphere ecosystem, it consumes event messages, persists notification records to Azure Table Storage, renders HTML email templates from Azure Blob Storage, and sends outbound mail via SMTP. SMS notifications are stored with the same history model and sent through SMTP in development (for example Mailtrap), using a dedicated SMS pipeline and rate limiting.
 
 ## Overview
 
 The service acts as a notification hub that:
 
-- **Consumes events** from RabbitMQ via MassTransit (AuthCode, User Invitation, Password Reset, Management User flows)
-- **Persists notification history** to Azure Table Storage for idempotency and auditing
+- **Consumes events** from RabbitMQ via MassTransit (AuthCode, User Invitation, Password Reset, Management User flows, Phone Verification)
+- **Persists notification history** to Azure Table Storage for idempotency and auditing (per channel: email or SMS)
 - **Renders emails** using HTML templates stored in Azure Blob Storage
 - **Sends emails** via SMTP (e.g., Mailtrap for development)
+- **Sends SMS** by dequeueing pending rows on the SMS channel, validating payloads, applying a sliding-window SMS rate limit, and delivering via SMTP to a configured test inbox / sender pair in development
 - **Reprocesses failed messages** from RabbitMQ error queues with configurable retry limits
 
 ## Supported Notification Types
 
-| Event | Description |
-|-------|-------------|
-| **UserInvitation** | Welcome/invitation email when a user is invited |
-| **AuthCodeSent** | 2FA / authentication code email |
-| **PasswordResetInstructionSent** | Password reset instructions email |
-| **PasswordResetOneTimeCodeSent** | One-time code (OTP) for password reset |
-| **ManagementUserWelcomeEmailSent** | Welcome email for management portal users |
-| **ManagementUserPasswordEmailSent** | Password email for management portal users |
+| Event | Channel | Description |
+|-------|---------|-------------|
+| **UserInvitation** | Email | Welcome/invitation email when a user is invited |
+| **AuthCodeSent** | Email | 2FA / authentication code email |
+| **PasswordResetInstructionSent** | Email | Password reset instructions email |
+| **PasswordResetOneTimeCodeSent** | Email | One-time code (OTP) for password reset |
+| **ManagementUserWelcomeEmailSent** | Email | Welcome email for management portal users |
+| **ManagementUserPasswordEmailSent** | Email | Password email for management portal users |
+| **PhoneVerificationCodeSent** | SMS | Phone verification code (queued for SMS delivery) |
 
 ## Architecture
 
-![Architecture flowchart](docs/assets/architecture-flowchart.png)
+**How to read this chart:** the **happy path** is top-to-bottom: messages enter RabbitMQ, consumers validate and write **Azure Table Storage**, then **EmailProcessingJob** / **SmsProcessingJob** poll unpublished rows and send via **SmtpClientFactory**. **Error queue reprocessing is not a later stage after SMTP** — it runs only when a **consumer** fails (after MassTransit retries). Those messages sit in `*_error` queues; **ErrorQueueReprocessorJob** republishes to the **original exchange and routing key** (`BasicPublishAsync` using `MT-OriginalExchange` / `MT-OriginalRoutingKey`), so they **re-enter the same intake** at RabbitMQ. Failed **SMTP** sends stay in Table Storage (logged); they do **not** use this RabbitMQ retry loop.
+
+Diagram source: [`docs/assets/architecture-flowchart.mmd`](docs/assets/architecture-flowchart.mmd) (keep in sync with the block below).
+
+```mermaid
+flowchart TB
+    RMQ([RabbitMQ broker])
+
+    subgraph intake["Consumer intake (happy path)"]
+        MT["MassTransit consumers"]
+        VAL["Payload and key validation"]
+        RMQ --> MT --> VAL --> TBL[(Azure Table Storage\nnotification history)]
+    end
+
+    subgraph emailOut["Email outbound (polls Table Storage)"]
+        EJOB["EmailProcessingJob"]
+        ESVC["EmailService"]
+        RL_E["Sliding-window rate limit\nEmailRateLimit"]
+        MERGE["Blob HTML template\nHtmlSanitizer merge fields"]
+        EJOB --> ESVC --> RL_E --> MERGE
+    end
+
+    subgraph smsOut["SMS outbound (polls Table Storage)"]
+        SJOB["SmsProcessingJob"]
+        SSVC["SmsService"]
+        RL_S["Sliding-window rate limit\nSmsRateLimit"]
+        MSG["MimeMessage\ntest inbox, dev SMTP"]
+        SJOB --> SSVC --> RL_S --> MSG
+    end
+
+    TBL -->|"Channel = Email,\nIsPublished = false"| EJOB
+    TBL -->|"Channel = SMS,\nIsPublished = false"| SJOB
+
+    MERGE --> FCY["Shared SmtpClientFactory\nMailKit SMTP send"]
+    MSG --> FCY
+
+    subgraph retry["Consumer failure only — parallel retry loop"]
+        ERR["MassTransit error queues\nconsumer threw after retries"]
+        REP["ErrorQueueReprocessorJob\nBasicPublish MT-OriginalExchange\nMT-OriginalRoutingKey"]
+        ERR --> REP --> RMQ
+    end
+
+    MT -.->|"fault to error queue"| ERR
+```
 
 ## Tech Stack
 
@@ -33,7 +78,7 @@ The service acts as a notification hub that:
 - **MassTransit.RabbitMQ** - Event consumption
 - **Azure.Data.Tables** - Notification history persistence
 - **Azure.Storage.Blobs** - HTML email template storage
-- **MailKit** - SMTP email delivery
+- **MailKit** - SMTP delivery for email and for the SMS pipeline (SMTP-backed in development)
 - **Serilog** - Structured logging
 - **OpenTelemetry** - Zipkin/Jaeger tracing
 
@@ -51,11 +96,13 @@ Key settings in `appsettings.json`:
 | Section | Key | Description |
 |---------|-----|-------------|
 | **EventBus** | Host, Username, Password, VirtualHost | RabbitMQ connection |
-| **EmailTemplates** | *per event* | Blob template name per notification type |
-| **EmailSettings** | Server, Port, UserName, Password | SMTP server |
+| **EmailTemplates** | *per event* | Blob template name per notification type (email flows) |
+| **EmailSettings** | Server, Port, UserName, Password, CompanyAddress | SMTP server for email sending |
+| **SmsSettings** | TestInboxAddress, FromAddress | SMTP “SMS” delivery in dev: inbox that receives messages and required sender address |
+| **RateLimiter** | Enabled, MaxEmailsPerMinute, MaxSmsPerMinute | Per-minute caps for email and SMS sending |
 | **ConnectionStrings** | AzureTableStorage, BlobStorage | Azure Storage endpoints |
-| **AppConfigurations** | NotificationProcessInterval | Seconds between email processing runs |
-| **ErrorQueueReprocessor** | Enabled, PollIntervalSeconds, MaxAttempts, ErrorQueues | Error queue reprocessing |
+| **AppConfigurations** | NotificationProcessInterval, IntervalUnit | Polling interval for both email and SMS background jobs |
+| **ErrorQueueReprocessor** | Enabled, PollIntervalSeconds, MaxAttempts, ErrorQueues | Error queue reprocessing (includes `phone-verification-code-sent_error` when SMS is enabled) |
 
 ## Running Locally
 
@@ -63,10 +110,12 @@ Key settings in `appsettings.json`:
 
 2. **Configure** `appsettings.json` or `appsettings.Development.json`:
    - EventBus: RabbitMQ host, credentials
-   - EmailSettings: SMTP server (e.g., Mailtrap)
+   - EmailSettings: SMTP server (e.g., Mailtrap) for email
+   - SmsSettings: `TestInboxAddress` and `FromAddress` for the SMS pipeline (SMTP-backed in development)
+   - RateLimiter: email and SMS per-minute limits as needed
    - ConnectionStrings: Azure Table and Blob endpoints (use Azurite for local dev)
 
-3. **Upload HTML templates** to Azure Blob Storage (or Azurite) in the `templates` container. Template names must match `EmailTemplates` config (e.g., `UserInvitationSent.html`, `AuthCodeSent.html`).
+3. **Upload HTML templates** to Azure Blob Storage (or Azurite) in the `templates` container. Template names must match `EmailTemplates` config (e.g., `UserInvitationSent.html`, `AuthCodeSent.html`). SMS flows do not use these templates; they rely on persisted notification payload data.
 
 4. **Run the service**:
    ```bash
@@ -97,7 +146,8 @@ The service depends on:
 src/Blogsphere.Notification.Service/
 |-- BackgroundJobs/
 |   |-- EventBusStarterJob.cs       # Starts MassTransit
-|   |-- EmailProcessingJob.cs       # Polls Table Storage, sends emails
+|   |-- EmailProcessingJob.cs       # Polls Table Storage, sends email notifications
+|   |-- SmsProcessingJob.cs         # Polls Table Storage, sends SMS-channel notifications
 |   +-- ErrorQueueReprocessorJob.cs # Reprocesses RabbitMQ error queues
 |-- Configurations/                # Options classes for appsettings
 |-- Data/Storage/                  # Table and Blob repositories
@@ -105,13 +155,13 @@ src/Blogsphere.Notification.Service/
 |   |-- Consumers/                 # MassTransit consumers per event type
 |   +-- Contracts/                 # Event message definitions
 |-- Models/                        # Constants, enums, DTOs
-|-- Services/                      # EmailService
+|-- Services/                      # EmailService, SmsService, validation, rate limiting
 +-- Program.cs
 ```
 
 ## Error Queue Reprocessing
 
-Failed messages land in RabbitMQ error queues (e.g., `auth-code-sent_error`). The `ErrorQueueReprocessorJob` periodically moves messages back to the original exchange for retry, up to `MaxAttempts`. Configure which queues to reprocess in `ErrorQueueReprocessor:ErrorQueues`.
+Failed messages land in RabbitMQ error queues (e.g., `auth-code-sent_error`, `phone-verification-code-sent_error`). The `ErrorQueueReprocessorJob` periodically moves messages back to the original exchange for retry, up to `MaxAttempts`. Configure which queues to reprocess in `ErrorQueueReprocessor:ErrorQueues`.
 
 ## License
 
