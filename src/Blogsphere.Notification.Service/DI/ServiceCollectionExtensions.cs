@@ -1,7 +1,11 @@
 using Blogsphere.Notification.Service.Configurations;
 using Blogsphere.Notification.Service.EventBus.Consumers;
 using Blogsphere.Notification.Service.Services;
+using Blogsphere.Notification.Service.Services.RateLimiting;
+using Blogsphere.Notification.Service.Services.Sanitization;
+using Blogsphere.Notification.Service.Services.Validation;
 using MassTransit;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
@@ -31,6 +35,18 @@ namespace Blogsphere.Notification.Service.DI
             });
 
             services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<ISmsService, SmsService>();
+            services.AddSingleton<ISmtpClientFactory, SmtpClientFactory>();
+            services.AddSingleton<IRateLimiter<EmailRateLimit>>(sp =>
+                new SlidingWindowRateLimiter<EmailRateLimit>(
+                    sp.GetRequiredService<IOptions<RateLimiterOption>>(),
+                    options => options.MaxEmailsPerMinute));
+            services.AddSingleton<IRateLimiter<SmsRateLimit>>(sp =>
+                new SlidingWindowRateLimiter<SmsRateLimit>(
+                    sp.GetRequiredService<IOptions<RateLimiterOption>>(),
+                    options => options.MaxSmsPerMinute));
+            services.AddSingleton<IValidationService, ValidationService>();
+            services.AddSingleton<IHtmlSanitizer, HtmlSanitizer>();
 
             // open telemtry
             services.AddOpenTelemetry()
