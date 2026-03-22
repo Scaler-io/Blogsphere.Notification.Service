@@ -1,0 +1,42 @@
+%% Blogsphere.Notification.Service — architecture (source for README diagram)
+%% Edit this file, then sync the ```mermaid block in README.md
+
+flowchart TB
+    subgraph intake["Event intake"]
+        RMQ[(RabbitMQ)]
+        MT[MassTransit consumers]
+        VAL[Payload and key validation]
+        RMQ --> MT --> VAL --> TBL[(Azure Table Storage\nnotification history)]
+    end
+
+    subgraph emailOut["Email outbound"]
+        EJOB[EmailProcessingJob]
+        ESVC[EmailService]
+        BLOB[(Azure Blob\nHTML templates)]
+        SAN[HtmlSanitizer\nmerge fields]
+        RL_E[Sliding-window rate limit\nEmailRateLimit]
+        FCY[SmtpClientFactory]
+        EJOB --> ESVC
+        ESVC --> BLOB
+        ESVC --> SAN
+        ESVC --> RL_E
+        ESVC --> FCY
+    end
+
+    subgraph smsOut["SMS outbound"]
+        SJOB[SmsProcessingJob]
+        SSVC[SmsService\nMimeMessage to test inbox]
+        RL_S[Sliding-window rate limit\nSmsRateLimit]
+        SJOB --> SSVC
+        SSVC --> RL_S
+        SSVC --> FCY
+    end
+
+    TBL -->|"Channel = Email, unpublished"| EJOB
+    TBL -->|"Channel = SMS, unpublished"| SJOB
+
+    subgraph retry["Error queue reprocessing"]
+        ERR[MassTransit error queues]
+        REP[ErrorQueueReprocessorJob]
+        ERR --> REP --> RMQ
+    end
