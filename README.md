@@ -27,48 +27,49 @@ The service acts as a notification hub that:
 
 ## Architecture
 
+**How to read this chart:** the **happy path** is top-to-bottom: messages enter RabbitMQ, consumers validate and write **Azure Table Storage**, then **EmailProcessingJob** / **SmsProcessingJob** poll unpublished rows and send via **SmtpClientFactory**. **Error queue reprocessing is not a later stage after SMTP** — it runs only when a **consumer** fails (after MassTransit retries). Those messages sit in `*_error` queues; **ErrorQueueReprocessorJob** republishes to the **original exchange and routing key** (`BasicPublishAsync` using `MT-OriginalExchange` / `MT-OriginalRoutingKey`), so they **re-enter the same intake** at RabbitMQ. Failed **SMTP** sends stay in Table Storage (logged); they do **not** use this RabbitMQ retry loop.
+
 Diagram source: [`docs/assets/architecture-flowchart.mmd`](docs/assets/architecture-flowchart.mmd) (keep in sync with the block below).
 
 ```mermaid
 flowchart TB
-    subgraph intake["Event intake"]
-        RMQ[(RabbitMQ)]
+    RMQ[(RabbitMQ broker)]
+
+    subgraph intake["Consumer intake (happy path)"]
         MT[MassTransit consumers]
         VAL[Payload and key validation]
         RMQ --> MT --> VAL --> TBL[(Azure Table Storage\nnotification history)]
     end
 
-    subgraph emailOut["Email outbound"]
+    subgraph emailOut["Email outbound (polls Table Storage)"]
         EJOB[EmailProcessingJob]
         ESVC[EmailService]
-        BLOB[(Azure Blob\nHTML templates)]
-        SAN[HtmlSanitizer\nmerge fields]
         RL_E[Sliding-window rate limit\nEmailRateLimit]
-        FCY[SmtpClientFactory]
-        EJOB --> ESVC
-        ESVC --> BLOB
-        ESVC --> SAN
-        ESVC --> RL_E
-        ESVC --> FCY
+        MERGE[Blob HTML template +\nHtmlSanitizer on field values]
+        EJOB --> ESVC --> RL_E --> MERGE
     end
 
-    subgraph smsOut["SMS outbound"]
+    subgraph smsOut["SMS outbound (polls Table Storage)"]
         SJOB[SmsProcessingJob]
-        SSVC[SmsService\nMimeMessage to test inbox]
+        SSVC[SmsService]
         RL_S[Sliding-window rate limit\nSmsRateLimit]
-        SJOB --> SSVC
-        SSVC --> RL_S
-        SSVC --> FCY
+        MSG[MimeMessage\n(test inbox / dev SMTP)]
+        SJOB --> SSVC --> RL_S --> MSG
     end
 
-    TBL -->|"Channel = Email, unpublished"| EJOB
-    TBL -->|"Channel = SMS, unpublished"| SJOB
+    TBL -->|"Channel = Email,\nIsPublished = false"| EJOB
+    TBL -->|"Channel = SMS,\nIsPublished = false"| SJOB
 
-    subgraph retry["Error queue reprocessing"]
-        ERR[MassTransit error queues]
-        REP[ErrorQueueReprocessorJob]
+    MERGE --> FCY[Shared SmtpClientFactory\nMailKit SMTP send]
+    MSG --> FCY
+
+    subgraph retry["Consumer failure only — parallel retry loop"]
+        ERR[MassTransit *_error queues\n(consumer threw after retries)]
+        REP[ErrorQueueReprocessorJob\nBasicPublish to MT-OriginalExchange\n+ MT-OriginalRoutingKey]
         ERR --> REP --> RMQ
     end
+
+    MT -.->|fault to error queue| ERR
 ```
 
 ## Tech Stack
