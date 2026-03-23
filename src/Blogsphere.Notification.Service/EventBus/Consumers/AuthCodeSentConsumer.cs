@@ -34,6 +34,7 @@ public class AuthCodeSentConsumer(
             "SelfResetPassword" => AuthCodeEmailBody.SelfResetPassword,
             "Disable2FA" => AuthCodeEmailBody.Disable2FA,
             "SignIn" => AuthCodeEmailBody.SignIn,
+            "TwoFactor" => AuthCodeEmailBody.TwoFactor,
             _ => throw new InvalidOperationException($"Invalid purpose: {purpose}")
         };
         return JsonConvert.SerializeObject(new List<TemplateFields>
